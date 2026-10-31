@@ -3,20 +3,29 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
-import { Droplets, Feather, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
+import MeadowBackground from "@/components/MeadowBackground";
 import EnvironmentCanvas from "@/components/EnvironmentCanvas";
 import TopHudBar from "@/components/TopHudBar";
 import PhoenixTreeStage from "@/components/PhoenixTreeStage";
 import GuestWaterModal from "@/components/GuestWaterModal";
-import BranchesDrawer from "@/components/BranchesDrawer";
 import ScrollModal from "@/components/ScrollModal";
 import { getTreeStageInfo } from "@/lib/treeConfig";
-import { playWaterAndChimeSound, playScrollSound } from "@/lib/soundEffects";
 
 function getLocalTodayVN() {
   return new Intl.DateTimeFormat("en-CA", {
     timeZone: "Asia/Ho_Chi_Minh",
   }).format(new Date());
+}
+
+function getOrCreateClientId() {
+  if (typeof window === "undefined") return "";
+  let cid = localStorage.getItem("cay_phuong_client_id");
+  if (!cid) {
+    cid = `cid_${Date.now()}_${Math.random().toString(36).slice(2, 10)}`;
+    localStorage.setItem("cay_phuong_client_id", cid);
+  }
+  return cid;
 }
 
 export default function HomePage() {
@@ -29,25 +38,26 @@ export default function HomePage() {
   });
   const [branches, setBranches] = useState([]);
   const [myTodayWaterCount, setMyTodayWaterCount] = useState(0);
+  const [myTodayNote, setMyTodayNote] = useState(null);
   const [dbConfigWarning, setDbConfigWarning] = useState(null);
 
   const [isLoading, setIsLoading] = useState(true);
   const [isWatering, setIsWatering] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
+
   const [isWaterModalOpen, setIsWaterModalOpen] = useState(false);
-  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
+  const [modalInitialMode, setModalInitialMode] = useState("name");
+
   const [activeScrollBranch, setActiveScrollBranch] = useState(null);
-  const [isMuted, setIsMuted] = useState(false);
   const [toast, setToast] = useState(null);
 
   const showToast = useCallback((message, type = "success") => {
     setToast({ message, type });
     setTimeout(() => {
       setToast((prev) => (prev?.message === message ? null : prev));
-    }, 3800);
+    }, 3500);
   }, []);
 
-  // Sync myTodayWaterCount between server and localStorage for todayVN
   const syncTodayWaterCount = useCallback((serverCount, todayStr) => {
     if (typeof window === "undefined") {
       setMyTodayWaterCount(serverCount);
@@ -78,11 +88,22 @@ export default function HomePage() {
 
   const fetchTreeData = useCallback(async () => {
     try {
-      const res = await fetch("/api/tree", { cache: "no-store" });
+      const clientId = getOrCreateClientId();
+      const res = await fetch("/api/tree", {
+        headers: { "x-client-id": clientId },
+        cache: "no-store",
+      });
       const data = await res.json();
       if (data.ok) {
         setTreeState(data.treeState);
         setBranches(data.branches || []);
+        setMyTodayNote(data.myTodayNote || null);
+        if (data.myTodayNote && typeof window !== "undefined") {
+          localStorage.setItem(
+            "cay_phuong_note_sent_date",
+            data.todayVN || getLocalTodayVN()
+          );
+        }
         setDbConfigWarning(data.dbConfigWarning || null);
         syncTodayWaterCount(data.myTodayWaterCount || 0, data.todayVN);
       }
@@ -94,33 +115,18 @@ export default function HomePage() {
   }, [showToast, syncTodayWaterCount]);
 
   useEffect(() => {
-    if (typeof window !== "undefined") {
-      const savedMute = localStorage.getItem("cay_phuong_muted");
-      if (savedMute === "true") setIsMuted(true);
-    }
     fetchTreeData();
   }, [fetchTreeData]);
 
-  const handleToggleMute = () => {
-    setIsMuted((prev) => {
-      const next = !prev;
-      if (typeof window !== "undefined") {
-        localStorage.setItem("cay_phuong_muted", String(next));
-      }
-      return next;
-    });
-  };
-
-  const triggerWaterCelebration = (prevTotal, nextTotal, hasNote) => {
+  const triggerWaterAnimation = (prevTotal, nextTotal) => {
     setIsWatering(true);
-    playWaterAndChimeSound(isMuted);
 
     const prevStage = getTreeStageInfo(prevTotal).stage;
     const nextStage = getTreeStageInfo(nextTotal).stage;
 
-    if (nextStage > prevStage || hasNote) {
+    if (nextStage > prevStage) {
       confetti({
-        particleCount: nextStage > prevStage ? 90 : 45,
+        particleCount: 80,
         spread: 70,
         origin: { y: 0.65 },
         colors: ["#fbbf24", "#ef4444", "#38bdf8", "#4ade80"],
@@ -132,24 +138,43 @@ export default function HomePage() {
     }, 1700);
   };
 
-  const handleSubmitWater = async ({ name, isAnonymous, note, isPublic }) => {
+  // Khi ấn vào icon Bình tưới nước cạnh cây
+  const handleWaterButtonClick = async () => {
+    if (isSubmitting || isLoading) return;
+
     if (myTodayWaterCount >= 10) {
       showToast(
         "Hôm nay bạn đã tưới đủ 10/10 lần rồi, mai quay lại tưới tiếp nhé!",
         "warning"
       );
-      return false;
+      return;
     }
 
     setIsSubmitting(true);
     const prevTotal =
       (treeState.ownerWaterCount || 0) + (treeState.guestWaterCount || 0);
 
+    let savedName = "";
+    let savedAnon = false;
+    const clientId = getOrCreateClientId();
+    if (typeof window !== "undefined") {
+      savedName = localStorage.getItem("cay_phuong_guest_name") || "";
+      savedAnon = localStorage.getItem("cay_phuong_guest_anon") === "true";
+    }
+
     try {
       const res = await fetch("/api/water", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ name, isAnonymous, note, isPublic }),
+        headers: {
+          "Content-Type": "application/json",
+          "x-client-id": clientId,
+        },
+        body: JSON.stringify({
+          name: savedAnon ? null : savedName,
+          isAnonymous: savedAnon,
+          note: "",
+          isPublic: true,
+        }),
       });
       const data = await res.json();
 
@@ -162,64 +187,156 @@ export default function HomePage() {
             "Hôm nay bạn đã tưới đủ 10/10 lần rồi, mai quay lại tưới tiếp nhé!",
           "warning"
         );
-        return false;
+        return;
       }
 
       setTreeState(data.treeState);
       setBranches(data.branches || []);
+      setMyTodayNote(data.myTodayNote || null);
       if (data.dbConfigWarning) setDbConfigWarning(data.dbConfigWarning);
 
-      syncTodayWaterCount(data.myTodayWaterCount, data.todayVN);
-      triggerWaterCelebration(
-        prevTotal,
-        data.treeState.totalCount,
-        Boolean(note && note.trim() !== "")
-      );
+      const todayKey = data.todayVN || getLocalTodayVN();
+      syncTodayWaterCount(data.myTodayWaterCount, todayKey);
+      triggerWaterAnimation(prevTotal, data.treeState.totalCount);
 
-      showToast(
-        note && note.trim() !== ""
-          ? "Đã tưới nước & treo cuộn thư lên Cành Vàng thành công!"
-          : "Cảm ơn bạn! Cây Phượng Đỏ vừa nhận thêm 1 lượt tưới mát lành.",
-        "success"
-      );
-      return true;
+      const alreadyNotedLocal =
+        typeof window !== "undefined" &&
+        localStorage.getItem("cay_phuong_note_sent_date") === todayKey;
+
+      const alreadyAskedFirstTime =
+        typeof window !== "undefined" &&
+        localStorage.getItem("cay_phuong_asked_once_date") === todayKey;
+
+      // Lần tưới đầu tiên trong ngày: Hỏi tên luôn -> hỏi xong mới hiện cái hỏi có note không
+      if (
+        data.myTodayWaterCount === 1 &&
+        !data.myTodayNote &&
+        !alreadyNotedLocal &&
+        !alreadyAskedFirstTime
+      ) {
+        if (typeof window !== "undefined") {
+          localStorage.setItem("cay_phuong_asked_once_date", todayKey);
+        }
+        setModalInitialMode("name");
+        setIsWaterModalOpen(true);
+      } else {
+        showToast("Đã tưới nước giúp Nam thành công!", "success");
+      }
     } catch {
       showToast("Có lỗi kết nối khi tưới cây, vui lòng thử lại!", "error");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // Khi người dùng nghĩ lại và bấm vào bông hoa đỏ của mình (có dấu ! nhỏ) để viết hoặc sửa lời nhắn
+  const handleClickMyBranch = () => {
+    if (myTodayNote) {
+      setModalInitialMode("form");
+      setIsWaterModalOpen(true);
+    } else {
+      setModalInitialMode("ask");
+      setIsWaterModalOpen(true);
+    }
+  };
+
+  const handleSaveNameOnly = async ({ name, isAnonymous }) => {
+    const clientId = getOrCreateClientId();
+    try {
+      const res = await fetch("/api/water", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-client-id": clientId,
+        },
+        body: JSON.stringify({
+          name,
+          isAnonymous,
+          updateNameOnly: true,
+        }),
+      });
+      const data = await res.json();
+      if (res.ok && data.ok) {
+        setBranches(data.branches || []);
+      }
+    } catch {
+      // Ignore silent name update error
+    }
+  };
+
+  const handleSaveNote = async ({ name, isAnonymous, note, isPublic }) => {
+    setIsSubmitting(true);
+    const clientId = getOrCreateClientId();
+    try {
+      const res = await fetch("/api/water", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "x-client-id": clientId,
+        },
+        body: JSON.stringify({
+          name,
+          isAnonymous,
+          note,
+          isPublic,
+          isEdit: Boolean(myTodayNote),
+        }),
+      });
+      const data = await res.json();
+
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "Không thể lưu lời nhắn.", "error");
+        return false;
+      }
+
+      setBranches(data.branches || []);
+      setMyTodayNote(data.myTodayNote || null);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("cay_phuong_note_sent_date", getLocalTodayVN());
+      }
+      showToast("Đã lưu lời nhắn của bạn bên bông hoa đỏ!", "success");
+      return true;
+    } catch {
+      showToast("Lỗi kết nối khi lưu lời nhắn.", "error");
       return false;
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleQuickWater = async () => {
-    if (isSubmitting || isWatering) return;
-    if (myTodayWaterCount >= 10) {
-      showToast(
-        "Hôm nay bạn đã tưới đủ 10/10 lần rồi, mai quay lại tưới tiếp nhé!",
-        "warning"
-      );
-      return;
-    }
+  const handleDeleteNote = async () => {
+    setIsSubmitting(true);
+    const clientId = getOrCreateClientId();
+    try {
+      const res = await fetch("/api/water", {
+        method: "DELETE",
+        headers: { "x-client-id": clientId },
+      });
+      const data = await res.json();
 
-    let savedName = "";
-    let savedAnon = false;
-    if (typeof window !== "undefined") {
-      savedName = localStorage.getItem("cay_phuong_guest_name") || "";
-      savedAnon = localStorage.getItem("cay_phuong_guest_anon") === "true";
-    }
+      if (!res.ok || !data.ok) {
+        showToast(data.error || "Không thể xóa lời nhắn.", "error");
+        return false;
+      }
 
-    await handleSubmitWater({
-      name: savedAnon ? null : savedName,
-      isAnonymous: savedAnon,
-      note: "",
-      isPublic: true,
-    });
+      setBranches(data.branches || []);
+      setMyTodayNote(null);
+      if (typeof window !== "undefined") {
+        localStorage.removeItem("cay_phuong_note_sent_date");
+      }
+      showToast("Đã xóa lời nhắn của bạn.", "success");
+      return true;
+    } catch {
+      showToast("Lỗi kết nối khi xóa lời nhắn.", "error");
+      return false;
+    } finally {
+      setIsSubmitting(false);
+    }
   };
 
   const handleOpenScroll = (branch) => {
     if (!branch) return;
-    if (branch.isPublic === false) return; // Bảo mật tuyệt đối ở trang /
-    playScrollSound(isMuted);
+    if (branch.isPublic === false) return;
     setActiveScrollBranch(branch);
   };
 
@@ -227,22 +344,20 @@ export default function HomePage() {
     (treeState.ownerWaterCount || 0) + (treeState.guestWaterCount || 0);
 
   return (
-    <main className="garden-bg relative h-[100dvh] w-screen overflow-hidden select-none">
+    <main className="relative h-[100dvh] w-screen overflow-hidden select-none">
+      {/* Background Bầu trời có mây & Bãi cỏ cho cả PC và Mobile */}
+      <MeadowBackground />
+
       {/* Ambient Sparkles, Falling Petals (Stage 6+) & Water Splash Layer */}
       <EnvironmentCanvas totalCount={totalCount} isWatering={isWatering} />
 
-      {/* Top Glassmorphism HUD Bar */}
+      {/* Top HUD Bar */}
       <TopHudBar
         totalCount={totalCount}
         ownerWaterCount={treeState.ownerWaterCount || 0}
         guestWaterCount={treeState.guestWaterCount || 0}
         streak={treeState.streak || 0}
-        myTodayWaterCount={myTodayWaterCount}
-        branchCount={branches.length}
         isAdminPage={false}
-        isMuted={isMuted}
-        onToggleMute={handleToggleMute}
-        onOpenDrawer={() => setIsDrawerOpen(true)}
         dbConfigWarning={dbConfigWarning}
       />
 
@@ -266,83 +381,28 @@ export default function HomePage() {
         )}
       </AnimatePresence>
 
-      {/* Centerpiece: 10-Stage Phoenix Tree & Golden Branches */}
+      {/* Centerpiece: 10-Stage Phoenix Tree, Icon Bình Tưới cạnh cây & Hoa Đỏ trên sân */}
       <PhoenixTreeStage
         totalCount={totalCount}
         branches={branches}
         isAdmin={false}
         isWatering={isWatering}
+        disabledWater={isSubmitting || isLoading}
+        onWaterClick={handleWaterButtonClick}
         onOpenScroll={handleOpenScroll}
+        onClickMyBranch={handleClickMyBranch}
       />
 
-      {/* Bottom Interactive Dock: Watering Can & Message Action */}
-      <div className="pointer-events-none absolute bottom-3 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-2 sm:bottom-5">
-        <div className="pointer-events-auto flex items-center gap-2.5 rounded-full border border-white/25 bg-slate-950/75 p-2 pr-4 text-white shadow-2xl backdrop-blur-xl">
-          {/* Main Watering Can Button (Quick 1-Tap Water) */}
-          <motion.button
-            type="button"
-            whileHover={{ scale: 1.07, rotate: -6 }}
-            whileTap={{ scale: 0.93 }}
-            disabled={isSubmitting || isLoading}
-            onClick={handleQuickWater}
-            title="Bấm để tưới nước ngay"
-            className="group relative flex h-14 w-14 items-center justify-center rounded-full border-2 border-sky-300/70 bg-gradient-to-br from-sky-400/40 via-cyan-500/30 to-blue-600/40 shadow-lg shadow-sky-500/30 transition sm:h-16 sm:w-16"
-          >
-            <img
-              src="/assets/watering_can.png"
-              alt="Bình tưới nước"
-              draggable={false}
-              className="h-11 w-11 object-contain drop-shadow-md transition-transform group-hover:-rotate-12 sm:h-13 sm:w-13"
-            />
-            <span className="absolute -bottom-1 rounded-full bg-sky-500 px-1.5 py-0.2 text-[9px] font-extrabold uppercase tracking-tight text-slate-950 shadow">
-              {myTodayWaterCount}/10
-            </span>
-          </motion.button>
-
-          {/* Two Action Triggers: Quick Water & Water + Write Scroll */}
-          <div className="flex flex-col gap-1 sm:flex-row sm:items-center sm:gap-2">
-            <button
-              type="button"
-              disabled={isSubmitting || isLoading}
-              onClick={handleQuickWater}
-              className="inline-flex items-center justify-center gap-1.5 rounded-full bg-gradient-to-r from-sky-400 to-cyan-300 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-md transition hover:brightness-110 disabled:opacity-50 sm:px-4 sm:py-2.5 sm:text-sm"
-            >
-              <Droplets className="h-4 w-4 text-blue-900" />
-              <span>Tưới Nước Ngay</span>
-            </button>
-
-            <button
-              type="button"
-              disabled={isSubmitting || isLoading}
-              onClick={() => setIsWaterModalOpen(true)}
-              className="inline-flex items-center justify-center gap-1.5 rounded-full border border-amber-300/60 bg-gradient-to-r from-amber-500/90 to-orange-500/90 px-3.5 py-2 text-xs font-extrabold text-slate-950 shadow-md transition hover:brightness-110 disabled:opacity-50 sm:px-4 sm:py-2.5 sm:text-sm"
-            >
-              <Feather className="h-4 w-4 text-amber-950" />
-              <span>Tưới & Viết Cuộn Thư</span>
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Modal: Guest Water + Note Customization */}
+      {/* Pop-up hỏi tên -> hỏi có muốn note không -> Bảng để lại lời nhắn */}
       <GuestWaterModal
         isOpen={isWaterModalOpen}
+        initialMode={modalInitialMode}
+        existingNote={myTodayNote}
         onClose={() => setIsWaterModalOpen(false)}
-        onSubmitWater={handleSubmitWater}
+        onSaveNameOnly={handleSaveNameOnly}
+        onSaveNote={handleSaveNote}
+        onDeleteNote={handleDeleteNote}
         isSubmitting={isSubmitting}
-        myTodayWaterCount={myTodayWaterCount}
-      />
-
-      {/* Drawer: Sổ Cành Vàng */}
-      <BranchesDrawer
-        isOpen={isDrawerOpen}
-        onClose={() => setIsDrawerOpen(false)}
-        branches={branches}
-        isAdmin={false}
-        onOpenScroll={(branch) => {
-          setIsDrawerOpen(false);
-          handleOpenScroll(branch);
-        }}
       />
 
       {/* Modal: Read Scroll Note on /assets/scroll_open_bg.png */}
@@ -353,4 +413,3 @@ export default function HomePage() {
     </main>
   );
 }
-

@@ -2,10 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-:root {
-  --foreground-rgb: 255, 255, 255;
-}
-
 * {
   box-sizing: border-box;
   margin: 0;
@@ -20,29 +16,7 @@ body {
   user-select: none;
   -webkit-user-select: none;
   font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-  background-color: #0b2438;
-}
-
-.garden-bg {
-  background-size: cover;
-  background-position: bottom center;
-  background-repeat: no-repeat;
-}
-
-@media (orientation: portrait) {
-  .garden-bg {
-    background-image: url("/assets/backgroundmb.png");
-  }
-}
-
-@media (orientation: landscape) {
-  .garden-bg {
-    background-image: url("/assets/backgroundpc.png");
-  }
-}
-
-.golden-branch-glow {
-  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.85));
+  background-color: #38bdf8;
 }
 
 @keyframes scrollSwing {
@@ -60,7 +34,43 @@ body {
   animation: scrollSwing 3.2s ease-in-out infinite;
 }
 
-/* Custom subtle scrollbar for modals and drawers */
+@keyframes flowerSway {
+  0%,
+  100% {
+    transform: rotate(-6deg);
+  }
+  50% {
+    transform: rotate(6deg);
+  }
+}
+
+.animate-flower-sway {
+  transform-origin: bottom center;
+  animation: flowerSway 3s ease-in-out infinite;
+}
+
+@keyframes cloudDrift {
+  0%,
+  100% {
+    transform: translateX(0px);
+  }
+  50% {
+    transform: translateX(24px);
+  }
+}
+
+.cloud-drift-slow {
+  animation: cloudDrift 14s ease-in-out infinite;
+}
+
+.cloud-drift-medium {
+  animation: cloudDrift 10s ease-in-out infinite reverse;
+}
+
+.cloud-drift-fast {
+  animation: cloudDrift 8s ease-in-out infinite;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
 }
@@ -78,4 +88,3 @@ body {
 .custom-scrollbar::-webkit-scrollbar-thumb:hover {
   background: rgba(217, 119, 6, 0.85);
 }
-

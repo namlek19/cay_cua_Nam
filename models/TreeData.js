@@ -57,6 +57,14 @@ const BranchSchema = new mongoose.Schema({
     type: Boolean,
     default: true,
   },
+  posX: {
+    type: Number,
+    default: null,
+  },
+  posY: {
+    type: Number,
+    default: null,
+  },
   createdAt: {
     type: Date,
     default: Date.now,
@@ -68,4 +76,3 @@ export const TreeState =
 
 export const Branch =
   mongoose.models.Branch || mongoose.model("Branch", BranchSchema);
-

@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { connectDB, DatabaseConfigError, getMemoryFallback } from "@/lib/mongodb";
 import { TreeState, Branch } from "@/models/TreeData";
-import { getDaysDifference } from "@/lib/serverUtils";
+import { getDaysDifference, ensureFlowerPosition } from "@/lib/serverUtils";
 
 export const dynamic = "force-dynamic";
 
 function formatAdminBranches(branches) {
-  return branches.map((b) => {
+  return branches.map((b, idx) => {
     const raw = b.toObject ? b.toObject() : { ...b };
     const rawNote = typeof raw.note === "string" ? raw.note : "";
+    const { posX, posY } = ensureFlowerPosition(raw, idx);
+
     return {
       _id: String(raw._id),
       dateStr: raw.dateStr,
@@ -17,6 +19,8 @@ function formatAdminBranches(branches) {
       note: rawNote,
       hasNote: rawNote.trim() !== "",
       isPublic: raw.isPublic !== false,
+      posX,
+      posY,
       createdAt: raw.createdAt,
     };
   });
@@ -89,7 +93,7 @@ export async function POST(request) {
         ok: true,
         isAdmin: true,
         todayVN,
-        message: "Mở khóa khu vườn Chủ Vườn thành công!",
+        message: "Mở khóa khu vườn thành công!",
         treeState: {
           key: treeState.key,
           ownerWaterCount: treeState.ownerWaterCount,
@@ -110,7 +114,7 @@ export async function POST(request) {
         treeState.streak = 1;
         treeState.lastOwnerWaterDate = todayVN;
       } else if (lastDate === todayVN) {
-        // Hôm nay đã tưới rồi, giữ nguyên streak, chỉ tăng ownerWaterCount
+        // Giữ nguyên streak
       } else {
         const diffDays = getDaysDifference(todayVN, lastDate);
         if (diffDays === 1) {
@@ -130,7 +134,7 @@ export async function POST(request) {
         ok: true,
         isAdmin: true,
         todayVN,
-        message: "Chủ vườn đã tưới nước thành công!",
+        message: "Nam đã tưới nước thành công!",
         treeState: {
           key: treeState.key,
           ownerWaterCount: treeState.ownerWaterCount,
@@ -187,8 +191,8 @@ export async function POST(request) {
         todayVN,
         message:
           action === "verify"
-            ? "Mở khóa Chủ Vườn thành công (Chế độ tạm thời)!"
-            : "Chủ vườn đã tưới nước thành công (Chế độ tạm thời)!",
+            ? "Mở khóa thành công!"
+            : "Nam đã tưới nước thành công!",
         treeState: {
           ...memState,
           totalCount: memState.ownerWaterCount + memState.guestWaterCount,
@@ -204,11 +208,10 @@ export async function POST(request) {
     return NextResponse.json(
       {
         ok: false,
-        error: "Lỗi máy chủ khi xử lý tác vụ Chủ vườn.",
+        error: "Lỗi máy chủ khi xử lý tác vụ.",
         details: error.message,
       },
       { status: 500 }
     );
   }
 }
-

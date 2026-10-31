@@ -1,15 +1,24 @@
 import { NextResponse } from "next/server";
 import { connectDB, DatabaseConfigError, getMemoryFallback } from "@/lib/mongodb";
 import { TreeState, Branch } from "@/models/TreeData";
-import { getVisitorHash } from "@/lib/serverUtils";
+import {
+  getVisitorHash,
+  getLegacyVisitorHash,
+  generateRandomLawnPos,
+  ensureFlowerPosition,
+} from "@/lib/serverUtils";
 
 export const dynamic = "force-dynamic";
 
-function sanitizeBranchesForPublic(branches) {
-  return branches.map((b) => {
+function sanitizeBranchesForPublic(branches, hashSet = [], todayVN = "") {
+  return branches.map((b, idx) => {
     const raw = b.toObject ? b.toObject() : { ...b };
     const rawNote = typeof raw.note === "string" ? raw.note : "";
     const hasNote = rawNote.trim() !== "";
+    const isMineToday = Boolean(
+      hashSet.includes(raw.visitorHash) && raw.dateStr === todayVN
+    );
+    const { posX, posY } = ensureFlowerPosition(raw, idx);
 
     if (raw.isPublic === false && hasNote) {
       return {
@@ -20,6 +29,9 @@ function sanitizeBranchesForPublic(branches) {
         note: "LOCKED_SECRET",
         hasNote: true,
         isPublic: false,
+        isMineToday,
+        posX,
+        posY,
         createdAt: raw.createdAt,
       };
     }
@@ -32,9 +44,30 @@ function sanitizeBranchesForPublic(branches) {
       note: rawNote,
       hasNote,
       isPublic: raw.isPublic !== false,
+      isMineToday,
+      posX,
+      posY,
       createdAt: raw.createdAt,
     };
   });
+}
+
+function extractMyTodayNote(branches, hashSet, todayVN) {
+  const myBranchesToday = branches.filter(
+    (b) => hashSet.includes(b.visitorHash) && b.dateStr === todayVN
+  );
+  const branchWithNote = myBranchesToday.find(
+    (b) => typeof b.note === "string" && b.note.trim() !== ""
+  );
+  if (!branchWithNote) return null;
+
+  return {
+    _id: String(branchWithNote._id),
+    name: branchWithNote.name || "",
+    isAnonymous: !branchWithNote.name,
+    note: branchWithNote.note,
+    isPublic: branchWithNote.isPublic !== false,
+  };
 }
 
 export async function POST(request) {
@@ -43,6 +76,8 @@ export async function POST(request) {
   }).format(new Date());
 
   const visitorHash = getVisitorHash(request);
+  const legacyHash = getLegacyVisitorHash(request);
+  const hashSet = Array.from(new Set([visitorHash, legacyHash].filter(Boolean)));
 
   let body = {};
   try {
@@ -61,22 +96,15 @@ export async function POST(request) {
   try {
     await connectDB();
 
-    const aggResult = await Branch.aggregate([
-      {
-        $match: {
-          visitorHash,
-          dateStr: todayVN,
-        },
-      },
-      {
-        $group: {
-          _id: null,
-          totalToday: { $sum: "$waterCountOnBranch" },
-        },
-      },
-    ]);
+    const myTodayDocs = await Branch.find({
+      visitorHash: { $in: hashSet },
+      dateStr: todayVN,
+    }).sort({ createdAt: 1 });
 
-    const currentTodayCount = aggResult.length > 0 ? aggResult[0].totalToday : 0;
+    const currentTodayCount = myTodayDocs.reduce(
+      (sum, b) => sum + (b.waterCountOnBranch || 1),
+      0
+    );
 
     if (currentTodayCount >= 10) {
       return NextResponse.json(
@@ -90,36 +118,72 @@ export async function POST(request) {
       );
     }
 
-    let targetBranch = null;
+    if (myTodayDocs.length > 0) {
+      const keeper = myTodayDocs[0];
+      let mergedWater = currentTodayCount + 1;
+      let existingNote = keeper.note || "";
+      let existingName = keeper.name;
+      let existingPublic = keeper.isPublic !== false;
 
-    if (cleanNote === "") {
-      const existingEmptyBranch = await Branch.findOne({
-        visitorHash,
-        dateStr: todayVN,
-        name: cleanName,
-        note: "",
-      }).sort({ createdAt: -1 });
-
-      if (existingEmptyBranch) {
-        existingEmptyBranch.waterCountOnBranch += 1;
-        await existingEmptyBranch.save();
-        targetBranch = existingEmptyBranch;
+      for (const doc of myTodayDocs) {
+        if (doc.note && doc.note.trim() !== "") {
+          existingNote = doc.note;
+          existingPublic = doc.isPublic !== false;
+        }
+        if (doc.name && doc.name.trim() !== "") {
+          existingName = doc.name;
+        }
       }
-    }
 
-    if (!targetBranch) {
-      targetBranch = await Branch.create({
+      if (typeof keeper.posX !== "number" || typeof keeper.posY !== "number") {
+        const allExisting = await Branch.find({}).lean();
+        const { posX, posY } = generateRandomLawnPos(allExisting);
+        keeper.posX = posX;
+        keeper.posY = posY;
+      }
+
+      keeper.visitorHash = visitorHash;
+      keeper.waterCountOnBranch = mergedWater;
+      if (!existingName && cleanName) {
+        keeper.name = cleanName;
+      } else {
+        keeper.name = existingName;
+      }
+
+      if (!existingNote || existingNote.trim() === "") {
+        if (cleanNote !== "") {
+          keeper.note = cleanNote;
+          keeper.isPublic = cleanIsPublic;
+        }
+      } else {
+        keeper.note = existingNote;
+        keeper.isPublic = existingPublic;
+      }
+
+      await keeper.save();
+
+      if (myTodayDocs.length > 1) {
+        const extraIds = myTodayDocs.slice(1).map((d) => d._id);
+        await Branch.deleteMany({ _id: { $in: extraIds } });
+      }
+    } else {
+      const allExisting = await Branch.find({}).lean();
+      const { posX, posY } = generateRandomLawnPos(allExisting);
+
+      await Branch.create({
         visitorHash,
         dateStr: todayVN,
         name: cleanName,
         waterCountOnBranch: 1,
         note: cleanNote,
         isPublic: cleanIsPublic,
+        posX,
+        posY,
         createdAt: new Date(),
       });
     }
 
-    let treeState = await TreeState.findOneAndUpdate(
+    const treeState = await TreeState.findOneAndUpdate(
       { key: "main_tree" },
       { $inc: { guestWaterCount: 1 } },
       { new: true, upsert: true, setDefaultsOnInsert: true }
@@ -127,12 +191,14 @@ export async function POST(request) {
 
     const allBranches = await Branch.find({}).sort({ createdAt: 1 }).lean();
     const newTodayCount = Math.min(10, currentTodayCount + 1);
+    const myTodayNote = extractMyTodayNote(allBranches, hashSet, todayVN);
 
     return NextResponse.json({
       ok: true,
-      message: "Tưới nước thành công! Cây Phượng Đỏ vừa nhận thêm sức sống.",
+      message: "Tưới nước thành công!",
       todayVN,
       myTodayWaterCount: newTodayCount,
+      myTodayNote,
       treeState: {
         key: treeState.key,
         ownerWaterCount: treeState.ownerWaterCount,
@@ -141,14 +207,18 @@ export async function POST(request) {
         streak: treeState.streak,
         lastOwnerWaterDate: treeState.lastOwnerWaterDate,
       },
-      branches: sanitizeBranchesForPublic(allBranches),
+      branches: sanitizeBranchesForPublic(allBranches, hashSet, todayVN),
     });
   } catch (error) {
     if (error instanceof DatabaseConfigError) {
       const fallback = getMemoryFallback();
-      const currentTodayCount = fallback.branches
-        .filter((b) => b.visitorHash === visitorHash && b.dateStr === todayVN)
-        .reduce((sum, b) => sum + (b.waterCountOnBranch || 1), 0);
+      const myBranches = fallback.branches.filter(
+        (b) => hashSet.includes(b.visitorHash) && b.dateStr === todayVN
+      );
+      const currentTodayCount = myBranches.reduce(
+        (sum, b) => sum + (b.waterCountOnBranch || 1),
+        0
+      );
 
       if (currentTodayCount >= 10) {
         return NextResponse.json(
@@ -162,25 +232,24 @@ export async function POST(request) {
         );
       }
 
-      let foundBranch = null;
-      if (cleanNote === "") {
-        for (let i = fallback.branches.length - 1; i >= 0; i--) {
-          const item = fallback.branches[i];
-          if (
-            item.visitorHash === visitorHash &&
-            item.dateStr === todayVN &&
-            item.name === cleanName &&
-            item.note === ""
-          ) {
-            item.waterCountOnBranch += 1;
-            foundBranch = item;
-            break;
-          }
+      if (myBranches.length > 0) {
+        const keeper = myBranches[0];
+        keeper.visitorHash = visitorHash;
+        keeper.waterCountOnBranch = currentTodayCount + 1;
+        if (!keeper.name && cleanName) keeper.name = cleanName;
+        if ((!keeper.note || keeper.note.trim() === "") && cleanNote !== "") {
+          keeper.note = cleanNote;
+          keeper.isPublic = cleanIsPublic;
         }
-      }
-
-      if (!foundBranch) {
-        foundBranch = {
+        if (myBranches.length > 1) {
+          const extraIds = new Set(myBranches.slice(1).map((d) => d._id));
+          fallback.branches = fallback.branches.filter(
+            (b) => !extraIds.has(b._id)
+          );
+        }
+      } else {
+        const { posX, posY } = generateRandomLawnPos(fallback.branches);
+        fallback.branches.push({
           _id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
           visitorHash,
           dateStr: todayVN,
@@ -188,9 +257,10 @@ export async function POST(request) {
           waterCountOnBranch: 1,
           note: cleanNote,
           isPublic: cleanIsPublic,
+          posX,
+          posY,
           createdAt: new Date().toISOString(),
-        };
-        fallback.branches.push(foundBranch);
+        });
       }
 
       fallback.treeState.guestWaterCount += 1;
@@ -198,19 +268,21 @@ export async function POST(request) {
       const sortedBranches = [...fallback.branches].sort(
         (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
       );
+      const myTodayNote = extractMyTodayNote(sortedBranches, hashSet, todayVN);
 
       return NextResponse.json({
         ok: true,
-        message: "Tưới nước thành công (Chế độ tạm thời - Chưa đổi mật khẩu DB)!",
+        message: "Tưới nước thành công!",
         todayVN,
         myTodayWaterCount: Math.min(10, currentTodayCount + 1),
+        myTodayNote,
         treeState: {
           ...fallback.treeState,
           totalCount:
             fallback.treeState.ownerWaterCount +
             fallback.treeState.guestWaterCount,
         },
-        branches: sanitizeBranchesForPublic(sortedBranches),
+        branches: sanitizeBranchesForPublic(sortedBranches, hashSet, todayVN),
         dbConfigWarning: {
           message: error.message,
           guide: error.guide,
@@ -229,3 +301,264 @@ export async function POST(request) {
   }
 }
 
+export async function PUT(request) {
+  const todayVN = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(new Date());
+
+  const visitorHash = getVisitorHash(request);
+  const legacyHash = getLegacyVisitorHash(request);
+  const hashSet = Array.from(new Set([visitorHash, legacyHash].filter(Boolean)));
+
+  let body = {};
+  try {
+    body = await request.json();
+  } catch {
+    body = {};
+  }
+
+  const { name, isAnonymous, note, isPublic, isEdit, updateNameOnly } = body;
+  const cleanName =
+    isAnonymous || !name?.trim() ? null : name.trim().slice(0, 40);
+  const cleanNote = note ? note.trim().slice(0, 500) : "";
+  const cleanIsPublic = isPublic === false ? false : true;
+
+  if (!updateNameOnly && !cleanNote) {
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Vui lòng nhập nội dung lời nhắn.",
+      },
+      { status: 400 }
+    );
+  }
+
+  try {
+    await connectDB();
+
+    const myTodayDocs = await Branch.find({
+      visitorHash: { $in: hashSet },
+      dateStr: todayVN,
+    }).sort({ createdAt: 1 });
+
+    // Nếu chỉ cập nhật tên cho bông hoa của lượt tưới hôm nay (Bước 1)
+    if (updateNameOnly) {
+      if (myTodayDocs.length > 0) {
+        const keeper = myTodayDocs[0];
+        keeper.visitorHash = visitorHash;
+        keeper.name = cleanName;
+        await keeper.save();
+      }
+      const allBranches = await Branch.find({}).sort({ createdAt: 1 }).lean();
+      const myTodayNote = extractMyTodayNote(allBranches, hashSet, todayVN);
+      return NextResponse.json({
+        ok: true,
+        message: "Đã cập nhật tên người tưới!",
+        myTodayNote,
+        branches: sanitizeBranchesForPublic(allBranches, hashSet, todayVN),
+      });
+    }
+
+    const existingWithNote = myTodayDocs.find(
+      (b) => b.note && b.note.trim() !== ""
+    );
+
+    if (existingWithNote && !isEdit) {
+      return NextResponse.json(
+        {
+          ok: false,
+          error:
+            "Hôm nay bạn đã để lại lời nhắn rồi (1 ngày chỉ được gửi lời nhắn 1 lần)!",
+        },
+        { status: 429 }
+      );
+    }
+
+    if (myTodayDocs.length > 0) {
+      const keeper = myTodayDocs[0];
+      const totalWater = myTodayDocs.reduce(
+        (sum, b) => sum + (b.waterCountOnBranch || 1),
+        0
+      );
+
+      keeper.visitorHash = visitorHash;
+      keeper.waterCountOnBranch = totalWater;
+      keeper.name = cleanName;
+      keeper.note = cleanNote;
+      keeper.isPublic = cleanIsPublic;
+      await keeper.save();
+
+      if (myTodayDocs.length > 1) {
+        const extraIds = myTodayDocs.slice(1).map((d) => d._id);
+        await Branch.deleteMany({ _id: { $in: extraIds } });
+      }
+    } else {
+      const allExisting = await Branch.find({}).lean();
+      const { posX, posY } = generateRandomLawnPos(allExisting);
+
+      await Branch.create({
+        visitorHash,
+        dateStr: todayVN,
+        name: cleanName,
+        waterCountOnBranch: 1,
+        note: cleanNote,
+        isPublic: cleanIsPublic,
+        posX,
+        posY,
+        createdAt: new Date(),
+      });
+    }
+
+    const allBranches = await Branch.find({}).sort({ createdAt: 1 }).lean();
+    const myTodayNote = extractMyTodayNote(allBranches, hashSet, todayVN);
+
+    return NextResponse.json({
+      ok: true,
+      message: "Đã lưu lời nhắn của bạn!",
+      myTodayNote,
+      branches: sanitizeBranchesForPublic(allBranches, hashSet, todayVN),
+    });
+  } catch (error) {
+    if (error instanceof DatabaseConfigError) {
+      const fallback = getMemoryFallback();
+      const myBranchesToday = fallback.branches.filter(
+        (b) => hashSet.includes(b.visitorHash) && b.dateStr === todayVN
+      );
+
+      if (updateNameOnly) {
+        if (myBranchesToday.length > 0) {
+          myBranchesToday[0].visitorHash = visitorHash;
+          myBranchesToday[0].name = cleanName;
+        }
+        const sortedBranches = [...fallback.branches].sort(
+          (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+        );
+        const myTodayNote = extractMyTodayNote(
+          sortedBranches,
+          hashSet,
+          todayVN
+        );
+        return NextResponse.json({
+          ok: true,
+          message: "Đã cập nhật tên người tưới!",
+          myTodayNote,
+          branches: sanitizeBranchesForPublic(sortedBranches, hashSet, todayVN),
+        });
+      }
+
+      const existingWithNote = myBranchesToday.find(
+        (b) => b.note && b.note.trim() !== ""
+      );
+
+      if (existingWithNote && !isEdit) {
+        return NextResponse.json(
+          {
+            ok: false,
+            error:
+              "Hôm nay bạn đã để lại lời nhắn rồi (1 ngày chỉ được gửi lời nhắn 1 lần)!",
+          },
+          { status: 429 }
+        );
+      }
+
+      if (myBranchesToday.length > 0) {
+        const keeper = myBranchesToday[0];
+        keeper.visitorHash = visitorHash;
+        keeper.name = cleanName;
+        keeper.note = cleanNote;
+        keeper.isPublic = cleanIsPublic;
+      } else {
+        const { posX, posY } = generateRandomLawnPos(fallback.branches);
+        fallback.branches.push({
+          _id: `mem_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
+          visitorHash,
+          dateStr: todayVN,
+          name: cleanName,
+          waterCountOnBranch: 1,
+          note: cleanNote,
+          isPublic: cleanIsPublic,
+          posX,
+          posY,
+          createdAt: new Date().toISOString(),
+        });
+      }
+
+      const sortedBranches = [...fallback.branches].sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
+      const myTodayNote = extractMyTodayNote(sortedBranches, hashSet, todayVN);
+
+      return NextResponse.json({
+        ok: true,
+        message: "Đã lưu lời nhắn của bạn!",
+        myTodayNote,
+        branches: sanitizeBranchesForPublic(sortedBranches, hashSet, todayVN),
+      });
+    }
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Không thể lưu lời nhắn lúc này.",
+      },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request) {
+  const todayVN = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Asia/Ho_Chi_Minh",
+  }).format(new Date());
+
+  const visitorHash = getVisitorHash(request);
+  const legacyHash = getLegacyVisitorHash(request);
+  const hashSet = Array.from(new Set([visitorHash, legacyHash].filter(Boolean)));
+
+  try {
+    await connectDB();
+
+    await Branch.updateMany(
+      { visitorHash: { $in: hashSet }, dateStr: todayVN },
+      { $set: { note: "", isPublic: true } }
+    );
+
+    const allBranches = await Branch.find({}).sort({ createdAt: 1 }).lean();
+
+    return NextResponse.json({
+      ok: true,
+      message: "Đã xóa lời nhắn của bạn.",
+      myTodayNote: null,
+      branches: sanitizeBranchesForPublic(allBranches, hashSet, todayVN),
+    });
+  } catch (error) {
+    if (error instanceof DatabaseConfigError) {
+      const fallback = getMemoryFallback();
+      fallback.branches.forEach((b) => {
+        if (hashSet.includes(b.visitorHash) && b.dateStr === todayVN) {
+          b.note = "";
+          b.isPublic = true;
+        }
+      });
+
+      const sortedBranches = [...fallback.branches].sort(
+        (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
+      );
+
+      return NextResponse.json({
+        ok: true,
+        message: "Đã xóa lời nhắn của bạn.",
+        myTodayNote: null,
+        branches: sanitizeBranchesForPublic(sortedBranches, hashSet, todayVN),
+      });
+    }
+
+    return NextResponse.json(
+      {
+        ok: false,
+        error: "Không thể xóa lời nhắn lúc này.",
+      },
+      { status: 500 }
+    );
+  }
+}

@@ -20,11 +20,11 @@ export default function BranchesDrawer({
   isAdmin = false,
   onOpenScroll,
 }) {
-  const [filterMode, setFilterMode] = useState("all"); // "all" | "public" | "secret" | "hasNote"
+  const [filterMode, setFilterMode] = useState("all");
 
   const filteredBranches = useMemo(() => {
     return branches.filter((b, index) => {
-      b._orderIndex = index + 1; // 1 = Gốc cây (cũ nhất), N = Ngọn cây (mới nhất)
+      b._orderIndex = index + 1;
       const hasNote = Boolean(b.hasNote || (b.note && b.note.trim() !== ""));
       if (filterMode === "public") return b.isPublic !== false && hasNote;
       if (filterMode === "secret") return b.isPublic === false && hasNote;
@@ -52,12 +52,12 @@ export default function BranchesDrawer({
             animate={{ x: 0 }}
             exit={{ x: "100%" }}
             transition={{ type: "spring", stiffness: 300, damping: 30 }}
-            className="fixed right-0 top-0 z-50 flex h-[100dvh] w-full max-w-md flex-col border-l border-amber-300/30 bg-slate-950/90 text-white shadow-2xl backdrop-blur-xl"
+            className="fixed right-0 top-0 z-50 flex h-[100dvh] w-full max-w-md flex-col border-l border-white/20 bg-slate-900 text-white shadow-2xl"
           >
             {/* Drawer Header */}
-            <div className="flex items-center justify-between border-b border-white/10 bg-gradient-to-r from-amber-500/20 via-orange-500/15 to-transparent px-5 py-4">
+            <div className="flex items-center justify-between border-b border-white/10 bg-slate-900 px-5 py-4">
               <div className="flex items-center gap-2.5">
-                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-400/40 bg-amber-500/20 text-amber-300 shadow-inner">
+                <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-amber-400/40 bg-amber-500/20 text-amber-300">
                   <BookOpen className="h-5 w-5" />
                 </div>
                 <div>
@@ -74,14 +74,14 @@ export default function BranchesDrawer({
                 type="button"
                 onClick={onClose}
                 aria-label="Đóng sổ cành vàng"
-                className="rounded-full border border-white/15 bg-white/10 p-2 text-slate-200 transition hover:bg-white/20"
+                className="rounded-full border border-white/15 bg-slate-800 p-2 text-slate-200 transition hover:bg-slate-700"
               >
                 <X className="h-4 w-4" />
               </button>
             </div>
 
-            {/* Filter Bar (Enhanced for /admin with Public / Secret filter, and useful on / too) */}
-            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-white/5 px-4 py-2.5 text-xs">
+            {/* Filter Bar */}
+            <div className="flex flex-wrap items-center gap-1.5 border-b border-white/10 bg-slate-950/50 px-4 py-2.5 text-xs">
               <span className="mr-1 inline-flex items-center gap-1 font-medium text-slate-300">
                 <Filter className="h-3.5 w-3.5 text-amber-400" />
                 Bộ lọc:
@@ -93,7 +93,7 @@ export default function BranchesDrawer({
                 className={`rounded-full px-3 py-1 font-medium transition ${
                   filterMode === "all"
                     ? "bg-amber-400 text-slate-950 shadow"
-                    : "bg-white/10 text-slate-200 hover:bg-white/20"
+                    : "bg-slate-800 text-slate-200 hover:bg-slate-700"
                 }`}
               >
                 Tất cả ({branches.length})
@@ -105,7 +105,7 @@ export default function BranchesDrawer({
                 className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-medium transition ${
                   filterMode === "public"
                     ? "bg-emerald-400 text-slate-950 shadow"
-                    : "bg-white/10 text-slate-200 hover:bg-white/20"
+                    : "bg-slate-800 text-slate-200 hover:bg-slate-700"
                 }`}
               >
                 <Globe className="h-3 w-3" />
@@ -118,7 +118,7 @@ export default function BranchesDrawer({
                 className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-medium transition ${
                   filterMode === "secret"
                     ? "bg-rose-400 text-slate-950 shadow"
-                    : "bg-white/10 text-slate-200 hover:bg-white/20"
+                    : "bg-slate-800 text-slate-200 hover:bg-slate-700"
                 }`}
               >
                 <Lock className="h-3 w-3" />
@@ -126,16 +126,13 @@ export default function BranchesDrawer({
               </button>
             </div>
 
-            {/* Branch List from Root (oldest) to Crown (newest) */}
+            {/* Branch List from Root to Crown */}
             <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
               {filteredBranches.length === 0 ? (
-                <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-white/5 p-6 text-center text-slate-300">
+                <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-slate-800/50 p-6 text-center text-slate-300">
                   <Sparkles className="mb-2 h-8 w-8 text-amber-300/70" />
                   <p className="text-sm font-medium">
                     Chưa có cành vàng nào trong danh mục này.
-                  </p>
-                  <p className="mt-1 text-xs text-slate-400">
-                    Hãy bấm vào bình tưới nước để mọc cành vàng đầu tiên nhé!
                   </p>
                 </div>
               ) : (
@@ -156,8 +153,8 @@ export default function BranchesDrawer({
                       key={branch._id}
                       className={`group relative rounded-2xl border p-3.5 transition ${
                         isSecret
-                          ? "border-rose-400/30 bg-gradient-to-br from-rose-950/35 to-slate-900/80"
-                          : "border-amber-400/25 bg-gradient-to-br from-amber-950/30 to-slate-900/80"
+                          ? "border-rose-400/30 bg-slate-800/90"
+                          : "border-amber-400/25 bg-slate-800/90"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-2">
@@ -198,11 +195,10 @@ export default function BranchesDrawer({
                         )}
                       </div>
 
-                      {/* Note Content or Secret Label */}
                       {hasNote ? (
                         <div className="mt-2.5">
                           {canReadNote ? (
-                            <div className="rounded-xl border border-amber-200/15 bg-black/35 p-3">
+                            <div className="rounded-xl border border-amber-200/15 bg-slate-900 p-3">
                               <p className="line-clamp-3 whitespace-pre-wrap text-xs leading-relaxed text-amber-100/95">
                                 “{branch.note}”
                               </p>
@@ -216,18 +212,15 @@ export default function BranchesDrawer({
                               </button>
                             </div>
                           ) : (
-                            <div className="flex items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-950/35 px-3 py-2 text-xs font-medium text-rose-200/90">
+                            <div className="flex items-center gap-2 rounded-xl border border-rose-400/25 bg-rose-950/40 px-3 py-2 text-xs font-medium text-rose-200/90">
                               <Lock className="h-3.5 w-3.5 shrink-0 text-rose-400" />
-                              <span>
-                                🔒 Lời nhắn bí mật dành riêng cho chủ vườn
-                              </span>
+                              <span>🔒 Lời nhắn bí mật (chỉ Nam được đọc)</span>
                             </div>
                           )}
                         </div>
                       ) : (
                         <p className="mt-2 text-xs italic text-slate-400">
-                          Đã tưới nước tiếp thêm sức sống cho cây (không kèm lời
-                          nhắn).
+                          Đã tưới nước giúp Nam (không kèm lời nhắn).
                         </p>
                       )}
                     </div>
@@ -241,4 +234,3 @@ export default function BranchesDrawer({
     </AnimatePresence>
   );
 }
-

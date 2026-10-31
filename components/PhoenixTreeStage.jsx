@@ -1,296 +1,376 @@
 "use client";
 
-import React, { useState, useEffect, useMemo } from "react";
+import React, { useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { ChevronLeft, ChevronRight, Lock, Layers } from "lucide-react";
+import { Lock } from "lucide-react";
 import { getTreeStageInfo } from "@/lib/treeConfig";
+
+function RedFlowerSvg({ className = "" }) {
+  return (
+    <svg
+      viewBox="0 0 64 76"
+      fill="none"
+      xmlns="http://www.w3.org/2000/svg"
+      className={className}
+    >
+      {/* Thân cây hoa màu xanh */}
+      <path
+        d="M32 34C32 48 31 62 32 74"
+        stroke="#15803d"
+        strokeWidth="4.5"
+        strokeLinecap="round"
+      />
+      {/* Lá bên trái */}
+      <path
+        d="M31 56C22 54 16 47 18 42C23 42 29 48 31 56Z"
+        fill="#22c55e"
+        stroke="#15803d"
+        strokeWidth="1.5"
+      />
+      {/* Lá bên phải */}
+      <path
+        d="M33 52C42 50 48 43 46 38C41 38 35 44 33 52Z"
+        fill="#22c55e"
+        stroke="#15803d"
+        strokeWidth="1.5"
+      />
+      {/* 5 cánh hoa màu đỏ rực rỡ */}
+      <circle
+        cx="32"
+        cy="14"
+        r="10"
+        fill="#ef4444"
+        stroke="#b91c1c"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="45"
+        cy="23"
+        r="10"
+        fill="#dc2626"
+        stroke="#991b1b"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="40"
+        cy="38"
+        r="10"
+        fill="#ef4444"
+        stroke="#b91c1c"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="24"
+        cy="38"
+        r="10"
+        fill="#dc2626"
+        stroke="#991b1b"
+        strokeWidth="1.5"
+      />
+      <circle
+        cx="19"
+        cy="23"
+        r="10"
+        fill="#ef4444"
+        stroke="#b91c1c"
+        strokeWidth="1.5"
+      />
+      {/* Nhụy hoa màu vàng tươi */}
+      <circle
+        cx="32"
+        cy="27"
+        r="6.5"
+        fill="#facc15"
+        stroke="#ca8a04"
+        strokeWidth="1.8"
+      />
+    </svg>
+  );
+}
 
 export default function PhoenixTreeStage({
   totalCount = 0,
   branches = [],
   isAdmin = false,
   isWatering = false,
+  disabledWater = false,
+  onWaterClick,
   onOpenScroll,
+  onClickMyBranch,
 }) {
   const stageInfo = useMemo(() => getTreeStageInfo(totalCount), [totalCount]);
 
-  // Split branches into tiers of max 10 branches per tier
-  const totalTiers = Math.max(1, Math.ceil(branches.length / 10));
-  const [currentTier, setCurrentTier] = useState(totalTiers - 1);
-
-  // Default & auto-jump to newest tier when new branches are added
-  useEffect(() => {
-    setCurrentTier(Math.max(0, Math.ceil(branches.length / 10) - 1));
-  }, [branches.length]);
-
-  const safeTier = Math.min(Math.max(0, currentTier), totalTiers - 1);
-  const currentTierBranches = useMemo(() => {
-    const start = safeTier * 10;
-    return branches.slice(start, start + 10);
-  }, [branches, safeTier]);
-
-  const [minBottom, maxBottom] = stageInfo.branchY;
-  const baseBranchWidthPercent = 30 * stageInfo.branchScale;
-
   return (
-    <div
-      className="TreeContainer z-10"
-      style={{
-        position: "absolute",
-        bottom: "4%",
-        left: "50%",
-        transform: "translateX(-50%)",
-        aspectRatio: "600 / 700",
-        height: "min(74dvh, 88vw)",
-      }}
-    >
-      {/* Scaled & Spring-animated Tree + Branches Wrapper */}
-      <motion.div
-        animate={{
-          scaleX: isWatering
-            ? [
-                stageInfo.microScale,
-                stageInfo.microScale * 1.045,
-                stageInfo.microScale * 0.98,
-                stageInfo.microScale,
-              ]
-            : stageInfo.microScale,
-          scaleY: isWatering
-            ? [
-                stageInfo.microScale,
-                stageInfo.microScale * 0.95,
-                stageInfo.microScale * 1.04,
-                stageInfo.microScale,
-              ]
-            : stageInfo.microScale,
-        }}
-        transition={{
-          duration: isWatering ? 0.85 : 0.5,
-          ease: "easeInOut",
-        }}
+    <>
+      {/* 1. Cây Phượng Đỏ đứng giữa sân cỏ & Icon Bình tưới đặt ngay cạnh gốc cây */}
+      <div
+        className="TreeContainer pointer-events-none z-10"
         style={{
-          transformOrigin: "bottom center",
+          position: "absolute",
+          bottom: "11%",
+          left: "50%",
+          transform: "translateX(-50%)",
+          aspectRatio: "600 / 700",
+          height: "min(72dvh, 80vw)",
         }}
-        className="relative h-full w-full"
       >
-        {/* Golden Branches Layer (Rendered around the trunk) */}
-        <div className="pointer-events-none absolute inset-0 z-20">
-          {currentTierBranches.map((branch, idx) => {
-            const isLeft = idx % 2 === 0;
-            const bottomPct =
-              minBottom + (idx / 9) * Math.max(1, maxBottom - minBottom);
+        <motion.div
+          animate={{
+            scaleX: isWatering
+              ? [
+                  stageInfo.microScale,
+                  stageInfo.microScale * 1.045,
+                  stageInfo.microScale * 0.98,
+                  stageInfo.microScale,
+                ]
+              : stageInfo.microScale,
+            scaleY: isWatering
+              ? [
+                  stageInfo.microScale,
+                  stageInfo.microScale * 0.95,
+                  stageInfo.microScale * 1.04,
+                  stageInfo.microScale,
+                ]
+              : stageInfo.microScale,
+          }}
+          transition={{
+            duration: isWatering ? 0.85 : 0.5,
+            ease: "easeInOut",
+          }}
+          style={{
+            transformOrigin: "bottom center",
+          }}
+          className="relative h-full w-full"
+        >
+          <img
+            src={stageInfo.img}
+            alt={stageInfo.title}
+            draggable={false}
+            className="pointer-events-none relative z-10 h-full w-full object-contain object-bottom select-none drop-shadow-[0_12px_25px_rgba(0,0,0,0.38)]"
+          />
+        </motion.div>
 
-            const displayName =
-              branch.name && branch.name.trim() !== ""
-                ? branch.name
-                : "Người Ẩn Danh";
-            const waterTimes = branch.waterCountOnBranch || 1;
-            const hasNote = Boolean(
-              branch.hasNote || (branch.note && branch.note.trim() !== "")
-            );
-            const isPublic = branch.isPublic !== false;
-
-            return (
-              <div
-                key={branch._id || `${safeTier}_${idx}`}
-                style={{
-                  position: "absolute",
-                  bottom: `${bottomPct.toFixed(2)}%`,
-                  ...(isLeft ? { right: "50%" } : { left: "50%" }),
-                  width: `${Math.max(14, baseBranchWidthPercent).toFixed(2)}%`,
-                }}
-                className={`pointer-events-auto flex flex-col ${
-                  isLeft ? "items-end" : "items-start"
-                }`}
-              >
-                {/* Badge info next to branch (Never flipped) */}
-                <div
-                  className={`mb-0.5 whitespace-nowrap rounded-full border border-amber-300/60 bg-slate-950/80 px-2 py-0.5 text-[9px] font-semibold text-amber-100 shadow-md backdrop-blur-xs sm:text-[11px] ${
-                    isLeft ? "mr-2 text-right" : "ml-2 text-left"
-                  }`}
-                >
-                  [{displayName} đã tưới {waterTimes} lần]
-                </div>
-
-                {/* Golden Branch Image Container */}
-                <div className="relative w-full">
-                  <img
-                    src="/assets/golden_branch.png"
-                    alt={`Cành vàng của ${displayName}`}
-                    draggable={false}
-                    style={{
-                      transform: isLeft ? "scaleX(-1)" : "none",
-                      filter: "drop-shadow(0 0 10px rgba(255, 215, 0, 0.85))",
-                    }}
-                    className="block h-auto w-full object-contain select-none"
-                  />
-
-                  {/* Scroll hanging below the golden branch */}
-                  {hasNote && (
-                    <div
-                      style={{
-                        position: "absolute",
-                        top: "62%",
-                        ...(isLeft ? { left: "26%" } : { right: "26%" }),
-                      }}
-                      className="z-30 flex flex-col items-center"
-                    >
-                      {isPublic ? (
-                        <button
-                          type="button"
-                          onClick={() => onOpenScroll && onOpenScroll(branch)}
-                          title={`Đọc lời nhắn của ${displayName}`}
-                          className="group relative cursor-pointer focus:outline-none"
-                        >
-                          <img
-                            src="/assets/scroll_public.png"
-                            alt="Cuộn thư công khai"
-                            draggable={false}
-                            className="animate-scroll-swing h-8 w-auto object-contain drop-shadow-[0_4px_8px_rgba(239,68,68,0.6)] transition-transform group-hover:scale-125 sm:h-11"
-                          />
-                        </button>
-                      ) : isAdmin ? (
-                        <button
-                          type="button"
-                          onClick={() => onOpenScroll && onOpenScroll(branch)}
-                          title={`[Chủ vườn] Mở thư bí mật của ${displayName}`}
-                          className="group relative cursor-pointer focus:outline-none"
-                        >
-                          <img
-                            src="/assets/scroll_locked.png"
-                            alt="Cuộn thư bí mật (Mở khóa Chủ vườn)"
-                            draggable={false}
-                            className="animate-scroll-swing h-8 w-auto object-contain drop-shadow-[0_4px_10px_rgba(244,63,94,0.85)] transition-transform group-hover:scale-125 sm:h-11"
-                          />
-                          <span className="mt-0.5 rounded bg-rose-600/90 px-1 py-0.2 text-[8px] font-bold text-white shadow">
-                            Mở đọc
-                          </span>
-                        </button>
-                      ) : (
-                        <div className=" flex flex-col items-center">
-                          <img
-                            src="/assets/scroll_locked.png"
-                            alt="Cuộn thư bí mật"
-                            draggable={false}
-                            className="pointer-events-none h-8 w-auto object-contain opacity-95 drop-shadow-[0_2px_6px_rgba(0,0,0,0.8)] sm:h-11"
-                          />
-                          <span className="pointer-events-none mt-0.5 inline-flex items-center gap-0.5 whitespace-nowrap rounded-full border border-rose-300/40 bg-slate-950/85 px-1.5 py-0.2 text-[8px] font-medium text-rose-200 shadow">
-                            <Lock className="h-2 w-2 text-rose-400" />
-                            Bí mật
-                          </span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Main Phoenix Tree Image (600x700 transparent PNG anchored at bottom center) */}
-        <img
-          src={stageInfo.img}
-          alt={stageInfo.title}
-          draggable={false}
-          className="pointer-events-none relative z-10 h-full w-full object-contain object-bottom select-none drop-shadow-[0_12px_25px_rgba(0,0,0,0.45)]"
-        />
-
-        {/* Animated Watering Can Flying in & Pouring Water Droplets onto Roots */}
-        <AnimatePresence>
-          {isWatering && (
-            <motion.div
-              key="flying-watering-can"
-              initial={{ opacity: 0, x: 90, y: 40, rotate: 10, scale: 0.7 }}
-              animate={{
-                opacity: 1,
-                x: 0,
-                y: 0,
-                rotate: [-5, -34, -30, -34, -10],
-                scale: 1,
-              }}
-              exit={{ opacity: 0, x: 70, y: 30, scale: 0.75 }}
-              transition={{ duration: 1.5, ease: "easeInOut" }}
-              style={{
-                position: "absolute",
-                bottom: "14%",
-                right: "10%",
-              }}
-              className="pointer-events-none z-40 flex flex-col items-center"
-            >
-              <img
-                src="/assets/watering_can.png"
-                alt="Đang tưới nước"
-                className="h-24 w-24 object-contain drop-shadow-[0_10px_20px_rgba(14,165,233,0.55)] sm:h-32 sm:w-32"
-              />
-
-              {/* Falling Water Streams from Spout to Tree Roots */}
-              <div className="absolute -bottom-10 -left-10 flex gap-2">
-                {[0, 1, 2, 3, 4].map((dropIdx) => (
-                  <motion.span
-                    key={dropIdx}
-                    initial={{ opacity: 0, y: -10, x: 0, scale: 0.6 }}
-                    animate={{
-                      opacity: [0, 1, 0.9, 0],
-                      y: [0, 48, 82],
-                      x: [-dropIdx * 5, -18 - dropIdx * 8],
-                      scale: [0.7, 1.1, 0.5],
-                    }}
-                    transition={{
-                      duration: 0.65,
-                      repeat: 2,
-                      delay: dropIdx * 0.11,
-                      ease: "easeIn",
-                    }}
-                    className="block h-3.5 w-2 rounded-full bg-gradient-to-b from-cyan-200 via-sky-400 to-blue-500 shadow-[0_0_10px_rgba(56,189,248,0.9)]"
-                  />
-                ))}
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
-      </motion.div>
-
-      {/* Tier Switcher near the base of the tree when branches.length > 10 */}
-      {totalTiers > 1 && (
-        <div
+        {/* Icon Bình tưới nước đặt ngay cạnh gốc cây (Bấm vào là tưới) */}
+        <motion.button
+          type="button"
+          onClick={onWaterClick}
+          disabled={disabledWater || isWatering}
+          title="Bấm để tưới nước cho cây"
+          whileHover={{ scale: 1.1, rotate: -8 }}
+          whileTap={{ scale: 0.92 }}
+          animate={
+            isWatering
+              ? {
+                  y: [-5, -55, -50, 0],
+                  x: [0, -28, -24, 0],
+                  rotate: [0, -34, -28, 0],
+                  scale: [1, 1.08, 1.05, 1],
+                }
+              : {
+                  y: [0, -4, 0],
+                  x: 0,
+                  rotate: 0,
+                  scale: 1,
+                }
+          }
+          transition={
+            isWatering
+              ? { duration: 1.5, ease: "easeInOut" }
+              : { duration: 2.4, repeat: Infinity, ease: "easeInOut" }
+          }
           style={{
             position: "absolute",
             bottom: "1.5%",
-            left: "50%",
-            transform: "translateX(-50%)",
+            left: "56%",
           }}
-          className="z-30 flex items-center gap-1.5 rounded-full border border-amber-300/45 bg-slate-950/85 px-3 py-1 text-xs font-semibold text-amber-100 shadow-xl backdrop-blur-md"
+          className="pointer-events-auto z-30 flex cursor-pointer flex-col items-center focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
-          <button
-            type="button"
-            onClick={() => setCurrentTier((prev) => Math.max(0, prev - 1))}
-            disabled={safeTier === 0}
-            aria-label="Tầng cành trước"
-            className="rounded-full p-1 text-amber-300 transition hover:bg-white/15 disabled:opacity-35"
-          >
-            <ChevronLeft className="h-4 w-4" />
-          </button>
+          <img
+            src="/assets/watering_can.png"
+            alt="Tưới nước"
+            draggable={false}
+            className="h-14 w-14 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)] sm:h-20 sm:w-20"
+          />
 
-          <span className="inline-flex items-center gap-1 whitespace-nowrap px-1 text-[11px] sm:text-xs">
-            <Layers className="h-3.5 w-3.5 text-amber-400" />
-            Tầng cành {safeTier + 1}/{totalTiers}
-          </span>
+          {/* Giọt nước chảy ra từ vòi bình tưới khi đang tưới */}
+          <AnimatePresence>
+            {isWatering && (
+              <div className="pointer-events-none absolute -bottom-8 -left-8 flex gap-1.5">
+                {[0, 1, 2, 3, 4].map((dropIdx) => (
+                  <motion.span
+                    key={dropIdx}
+                    initial={{ opacity: 0, y: -8, x: 0, scale: 0.6 }}
+                    animate={{
+                      opacity: [0, 1, 0.9, 0],
+                      y: [0, 38, 65],
+                      x: [-dropIdx * 4, -14 - dropIdx * 6],
+                      scale: [0.7, 1.1, 0.5],
+                    }}
+                    transition={{
+                      duration: 0.6,
+                      repeat: 2,
+                      delay: dropIdx * 0.1,
+                      ease: "easeIn",
+                    }}
+                    className="block h-3 w-1.5 rounded-full bg-sky-300 shadow-[0_0_8px_rgba(56,189,248,0.95)]"
+                  />
+                ))}
+              </div>
+            )}
+          </AnimatePresence>
+        </motion.button>
+      </div>
 
-          <button
-            type="button"
-            onClick={() =>
-              setCurrentTier((prev) => Math.min(totalTiers - 1, prev + 1))
-            }
-            disabled={safeTier >= totalTiers - 1}
-            aria-label="Tầng cành tiếp theo"
-            className="rounded-full p-1 text-amber-300 transition hover:bg-white/15 disabled:opacity-35"
-          >
-            <ChevronRight className="h-4 w-4" />
-          </button>
-        </div>
-      )}
-    </div>
+      {/* 2. Những bông hoa màu đỏ mọc ngẫu nhiên trên sân cỏ (Hiển thị đồng nhất trên cả Mobile & PC) */}
+      <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden">
+        {branches.map((branch, idx) => {
+          const posX = typeof branch.posX === "number" ? branch.posX : 24;
+          const posY = typeof branch.posY === "number" ? branch.posY : 15;
+
+          const displayName =
+            branch.name && branch.name.trim() !== ""
+              ? branch.name
+              : "Người ẩn danh";
+          const waterTimes = branch.waterCountOnBranch || 1;
+          const hasNote = Boolean(
+            branch.hasNote || (branch.note && branch.note.trim() !== "")
+          );
+          const isPublic = branch.isPublic !== false;
+          const canClickFlowerToNote = !isAdmin && Boolean(branch.isMineToday);
+
+          return (
+            <div
+              key={branch._id || idx}
+              style={{
+                position: "absolute",
+                left: `${posX}%`,
+                bottom: `${posY}%`,
+                transform: "translateX(-50%)",
+              }}
+              className="pointer-events-auto flex flex-col items-center"
+            >
+              {/* Khu vực Bông hoa đung đưa trong gió + Dấu ! nhỏ + Cuộn thư */}
+              <div className="relative flex items-center justify-center">
+                {/* Bông hoa đỏ đung đưa trong gió */}
+                <div
+                  onClick={() => {
+                    if (canClickFlowerToNote && onClickMyBranch) {
+                      onClickMyBranch(branch);
+                    } else if (hasNote && (isPublic || isAdmin) && onOpenScroll) {
+                      onOpenScroll(branch);
+                    }
+                  }}
+                  title={
+                    canClickFlowerToNote
+                      ? hasNote
+                        ? "Bấm để sửa hoặc xóa lời nhắn của bạn"
+                        : "Bấm vào bông hoa để viết lời nhắn cho Nam"
+                      : hasNote && (isPublic || isAdmin)
+                        ? `Đọc lời nhắn của ${displayName}`
+                        : undefined
+                  }
+                  style={{
+                    animationDelay: `${(idx % 5) * 0.35}s`,
+                  }}
+                  className={`animate-flower-sway relative flex items-center justify-center ${
+                    canClickFlowerToNote || (hasNote && (isPublic || isAdmin))
+                      ? "cursor-pointer transition-transform hover:scale-110"
+                      : ""
+                  }`}
+                >
+                  <RedFlowerSvg className="h-10 w-9 drop-shadow-[0_4px_6px_rgba(0,0,0,0.35)] sm:h-13 sm:w-11" />
+                </div>
+
+                {/* Dấu ! nhỏ nổi bật ngay gần bông hoa khi người dùng chưa để lại lời nhắn */}
+                {canClickFlowerToNote && !hasNote && (
+                  <motion.button
+                    type="button"
+                    animate={{ scale: [1, 1.22, 1], y: [0, -2, 0] }}
+                    transition={{
+                      duration: 1.4,
+                      repeat: Infinity,
+                      ease: "easeInOut",
+                    }}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onClickMyBranch) onClickMyBranch(branch);
+                    }}
+                    title="Bấm để để lại lời nhắn cho Nam"
+                    className="absolute -right-2 -top-1 z-30 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-white bg-amber-500 text-[10px] font-black leading-none text-slate-950 shadow-[0_0_10px_rgba(245,158,11,0.95)] sm:h-5 sm:w-5 sm:text-xs"
+                  >
+                    !
+                  </motion.button>
+                )}
+
+                {/* Cuộn thư nhỏ đặt ngay cạnh bông hoa nếu có lời nhắn */}
+                {hasNote && (
+                  <div className="absolute -right-4 bottom-1 z-30">
+                    {isPublic ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onOpenScroll) onOpenScroll(branch);
+                        }}
+                        title={`Đọc lời nhắn của ${displayName}`}
+                        className="cursor-pointer transition-transform hover:scale-125 focus:outline-none"
+                      >
+                        <img
+                          src="/assets/scroll_public.png"
+                          alt="Cuộn thư công khai"
+                          draggable={false}
+                          className="animate-scroll-swing h-6 w-auto object-contain drop-shadow-[0_3px_6px_rgba(239,68,68,0.65)] sm:h-7"
+                        />
+                      </button>
+                    ) : isAdmin ? (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (onOpenScroll) onOpenScroll(branch);
+                        }}
+                        title={`[Nam] Mở thư bí mật của ${displayName}`}
+                        className="cursor-pointer transition-transform hover:scale-125 focus:outline-none"
+                      >
+                        <img
+                          src="/assets/scroll_locked.png"
+                          alt="Cuộn thư bí mật"
+                          draggable={false}
+                          className="animate-scroll-swing h-6 w-auto object-contain drop-shadow-[0_3px_6px_rgba(244,63,94,0.85)] sm:h-7"
+                        />
+                      </button>
+                    ) : (
+                      <div className="pointer-events-none flex items-center">
+                        <img
+                          src="/assets/scroll_locked.png"
+                          alt="Cuộn thư bí mật"
+                          draggable={false}
+                          className="h-6 w-auto object-contain opacity-95 drop-shadow-[0_2px_5px_rgba(0,0,0,0.8)] sm:h-7"
+                        />
+                        <Lock className="-ml-1 h-2.5 w-2.5 text-rose-300" />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+
+              {/* Nhãn tên ngay gần bông hoa: [abc/Người ẩn danh đã tưới x lần] */}
+              <div
+                onClick={() => {
+                  if (canClickFlowerToNote && onClickMyBranch) {
+                    onClickMyBranch(branch);
+                  }
+                }}
+                className={`mt-0.5 whitespace-nowrap rounded-full border border-amber-300/60 bg-slate-950/85 px-2 py-0.5 text-[9px] font-semibold text-amber-100 shadow-md sm:text-[11px] ${
+                  canClickFlowerToNote ? "cursor-pointer hover:bg-slate-900" : ""
+                }`}
+              >
+                [{displayName} đã tưới {waterTimes} lần]
+              </div>
+            </div>
+          );
+        })}
+      </div>
+    </>
   );
 }
-
