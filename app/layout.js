@@ -1,9 +1,8 @@
 import "./globals.css";
 
 export const metadata = {
-  title: "Cây Phượng Đỏ | Khu Vườn Kỷ Niệm & Lời Nhắn Cành Vàng",
-  description:
-    "Cùng tưới nước chăm sóc Cây Phượng Đỏ lớn lên qua 10 giai đoạn trưởng thành và gửi gắm những cuộn thư kỷ niệm trên cành vàng.",
+  title: "Nam trồng cây",
+  description: "Cùng tưới nước chăm sóc cây của Nam lớn lên mỗi ngày.",
 };
 
 export const viewport = {
