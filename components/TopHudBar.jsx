@@ -33,8 +33,16 @@ export default function TopHudBar({
           </div>
 
           <div className="text-xs font-medium text-slate-200 sm:text-sm">
-            Nam: <b className="text-white">{ownerWaterCount}</b> • Mọi người:{" "}
-            <b className="text-white">{guestWaterCount}</b>
+            {isAdminPage ? (
+              <>
+                Nam: <b className="text-white">{ownerWaterCount}</b> • Mọi người:{" "}
+                <b className="text-white">{guestWaterCount}</b>
+              </>
+            ) : (
+              <>
+                Đã tưới <b className="text-white">{totalCount}</b> lần
+              </>
+            )}
           </div>
         </div>
 

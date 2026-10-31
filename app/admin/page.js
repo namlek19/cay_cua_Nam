@@ -38,6 +38,7 @@ export default function AdminPage() {
 
   const [isWatering, setIsWatering] = useState(false);
   const [isSubmittingWater, setIsSubmittingWater] = useState(false);
+  const [ownerWateredToday, setOwnerWateredToday] = useState(false);
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeScrollBranch, setActiveScrollBranch] = useState(null);
   const [toast, setToast] = useState(null);
@@ -88,10 +89,17 @@ export default function AdminPage() {
         if (treeData.ok) {
           setTreeState(treeData.treeState);
           setBranches(treeData.branches || []);
+          setOwnerWateredToday(
+            Boolean(
+              treeData.todayVN &&
+                treeData.treeState?.lastOwnerWaterDate === treeData.todayVN
+            )
+          );
           setDbConfigWarning(treeData.dbConfigWarning || null);
         } else {
           setTreeState(data.treeState);
           setBranches(data.branches || []);
+          setOwnerWateredToday(Boolean(data.ownerWateredToday));
           setDbConfigWarning(data.dbConfigWarning || null);
         }
 
@@ -148,6 +156,15 @@ export default function AdminPage() {
 
   const handleOwnerWater = async () => {
     if (isSubmittingWater || isWatering || !verifiedPin) return;
+
+    if (ownerWateredToday) {
+      showToast(
+        "Hôm nay bạn đã tưới cây rồi (1 lần/ngày). Hãy quay lại vào ngày mai nhé!",
+        "error"
+      );
+      return;
+    }
+
     setIsSubmittingWater(true);
 
     const prevTotal =
@@ -162,12 +179,16 @@ export default function AdminPage() {
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
+        if (data.alreadyWateredToday) {
+          setOwnerWateredToday(true);
+        }
         showToast(data.error || "Không thể tưới nước lúc này.", "error");
         return;
       }
 
       setTreeState(data.treeState);
       setBranches(data.branches || []);
+      setOwnerWateredToday(true);
       if (data.dbConfigWarning) setDbConfigWarning(data.dbConfigWarning);
 
       setIsWatering(true);

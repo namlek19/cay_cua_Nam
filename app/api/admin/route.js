@@ -93,6 +93,7 @@ export async function POST(request) {
         ok: true,
         isAdmin: true,
         todayVN,
+        ownerWateredToday: treeState.lastOwnerWaterDate === todayVN,
         message: "Mở khóa khu vườn thành công!",
         treeState: {
           key: treeState.key,
@@ -107,14 +108,27 @@ export async function POST(request) {
     }
 
     if (action === "water") {
+      const lastDate = treeState.lastOwnerWaterDate;
+
+      // Nam chỉ được tưới 1 lần / ngày
+      if (lastDate === todayVN) {
+        return NextResponse.json(
+          {
+            ok: false,
+            alreadyWateredToday: true,
+            ownerWateredToday: true,
+            error:
+              "Hôm nay bạn đã tưới cây rồi (1 lần/ngày). Hãy quay lại vào ngày mai nhé!",
+          },
+          { status: 429 }
+        );
+      }
+
       treeState.ownerWaterCount += 1;
 
-      const lastDate = treeState.lastOwnerWaterDate;
       if (lastDate === null) {
         treeState.streak = 1;
         treeState.lastOwnerWaterDate = todayVN;
-      } else if (lastDate === todayVN) {
-        // Giữ nguyên streak
       } else {
         const diffDays = getDaysDifference(todayVN, lastDate);
         if (diffDays === 1) {
@@ -134,6 +148,7 @@ export async function POST(request) {
         ok: true,
         isAdmin: true,
         todayVN,
+        ownerWateredToday: true,
         message: "Nam đã tưới nước thành công!",
         treeState: {
           key: treeState.key,
@@ -162,13 +177,24 @@ export async function POST(request) {
           }
         }
       } else if (action === "water") {
-        memState.ownerWaterCount += 1;
         const lastDate = memState.lastOwnerWaterDate;
+        if (lastDate === todayVN) {
+          return NextResponse.json(
+            {
+              ok: false,
+              alreadyWateredToday: true,
+              ownerWateredToday: true,
+              error:
+                "Hôm nay bạn đã tưới cây rồi (1 lần/ngày). Hãy quay lại vào ngày mai nhé!",
+            },
+            { status: 429 }
+          );
+        }
+
+        memState.ownerWaterCount += 1;
         if (lastDate === null) {
           memState.streak = 1;
           memState.lastOwnerWaterDate = todayVN;
-        } else if (lastDate === todayVN) {
-          // Giữ nguyên streak
         } else {
           const diffDays = getDaysDifference(todayVN, lastDate);
           if (diffDays === 1) {
@@ -189,6 +215,7 @@ export async function POST(request) {
         ok: true,
         isAdmin: true,
         todayVN,
+        ownerWateredToday: memState.lastOwnerWaterDate === todayVN,
         message:
           action === "verify"
             ? "Mở khóa thành công!"
