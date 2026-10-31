@@ -1,0 +1,81 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --foreground-rgb: 255, 255, 255;
+}
+
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html,
+body {
+  width: 100vw;
+  height: 100dvh;
+  overflow: hidden;
+  user-select: none;
+  -webkit-user-select: none;
+  font-family: "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  background-color: #0b2438;
+}
+
+.garden-bg {
+  background-size: cover;
+  background-position: bottom center;
+  background-repeat: no-repeat;
+}
+
+@media (orientation: portrait) {
+  .garden-bg {
+    background-image: url("/assets/backgroundmb.png");
+  }
+}
+
+@media (orientation: landscape) {
+  .garden-bg {
+    background-image: url("/assets/backgroundpc.png");
+  }
+}
+
+.golden-branch-glow {
+  filter: drop-shadow(0 0 10px rgba(255, 215, 0, 0.85));
+}
+
+@keyframes scrollSwing {
+  0%,
+  100% {
+    transform: rotate(-5deg);
+  }
+  50% {
+    transform: rotate(5deg);
+  }
+}
+
+.animate-scroll-swing {
+  transform-origin: top center;
+  animation: scrollSwing 3.2s ease-in-out infinite;
+}
+
+/* Custom subtle scrollbar for modals and drawers */
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: rgba(0, 0, 0, 0.12);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background: rgba(217, 119, 6, 0.6);
+  border-radius: 9999px;
+}
+
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background: rgba(217, 119, 6, 0.85);
+}
+
