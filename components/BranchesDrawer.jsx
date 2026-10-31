@@ -62,10 +62,10 @@ export default function BranchesDrawer({
                 </div>
                 <div>
                   <h2 className="text-base font-bold text-amber-200 sm:text-lg">
-                    Sổ Cành Vàng Kỷ Niệm
+                    Danh Sách Lời Nhắn & Lượt Tưới
                   </h2>
                   <p className="text-xs text-slate-300">
-                    Từ gốc lên ngọn ({branches.length} cành vàng)
+                    Tổng cộng {branches.length} bông hoa trên sân
                   </p>
                 </div>
               </div>
@@ -73,7 +73,7 @@ export default function BranchesDrawer({
               <button
                 type="button"
                 onClick={onClose}
-                aria-label="Đóng sổ cành vàng"
+                aria-label="Đóng danh sách lời nhắn"
                 className="rounded-full border border-white/15 bg-slate-800 p-2 text-slate-200 transition hover:bg-slate-700"
               >
                 <X className="h-4 w-4" />
@@ -97,6 +97,19 @@ export default function BranchesDrawer({
                 }`}
               >
                 Tất cả ({branches.length})
+              </button>
+
+              <button
+                type="button"
+                onClick={() => setFilterMode("hasNote")}
+                className={`inline-flex items-center gap-1 rounded-full px-3 py-1 font-medium transition ${
+                  filterMode === "hasNote"
+                    ? "bg-sky-400 text-slate-950 shadow"
+                    : "bg-slate-800 text-slate-200 hover:bg-slate-700"
+                }`}
+              >
+                <ScrollText className="h-3 w-3" />
+                Có lời nhắn
               </button>
 
               <button
@@ -126,13 +139,13 @@ export default function BranchesDrawer({
               </button>
             </div>
 
-            {/* Branch List from Root to Crown */}
+            {/* Flower & Note List */}
             <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
               {filteredBranches.length === 0 ? (
                 <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-slate-800/50 p-6 text-center text-slate-300">
                   <Sparkles className="mb-2 h-8 w-8 text-amber-300/70" />
                   <p className="text-sm font-medium">
-                    Chưa có cành vàng nào trong danh mục này.
+                    Chưa có lời nhắn hay bông hoa nào trong danh mục này.
                   </p>
                 </div>
               ) : (

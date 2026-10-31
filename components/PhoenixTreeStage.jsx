@@ -1,9 +1,36 @@
 "use client";
 
-import React, { useMemo } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { Lock } from "lucide-react";
+import { Lock, ChevronLeft, ChevronRight } from "lucide-react";
 import { getTreeStageInfo } from "@/lib/treeConfig";
+
+const FLOWERS_PER_PAGE = 6;
+
+// 6 vùng tọa độ chuẩn trên sân cỏ (3 bên trái cây, 3 bên phải cây) kết hợp độ lệch ngẫu nhiên từ server để hoa mọc tự nhiên mà KHÔNG BAO GIỜ đè nhau
+const LAWN_SLOTS = [
+  { baseX: 16, baseY: 18 },
+  { baseX: 64, baseY: 19 },
+  { baseX: 27, baseY: 12 },
+  { baseX: 75, baseY: 13 },
+  { baseX: 38, baseY: 19.5 },
+  { baseX: 85, baseY: 18.5 },
+];
+
+function getSlotCoords(branch, slotIdx) {
+  const slot = LAWN_SLOTS[slotIdx % LAWN_SLOTS.length];
+  const rawX = typeof branch.posX === "number" ? branch.posX : slot.baseX;
+  const rawY = typeof branch.posY === "number" ? branch.posY : slot.baseY;
+
+  // Tạo độ lệch nhỏ (-2.5% .. +2.5%) từ tọa độ ngẫu nhiên của server quanh ô chuẩn để mọi máy PC & Mobile đều thấy giống nhau và không bao giờ chồng chéo
+  const jitterX = ((Math.round(rawX * 10) % 50) - 25) / 10;
+  const jitterY = ((Math.round(rawY * 10) % 36) - 18) / 10;
+
+  return {
+    x: Number((slot.baseX + jitterX).toFixed(2)),
+    y: Number((slot.baseY + jitterY).toFixed(2)),
+  };
+}
 
 function RedFlowerSvg({ className = "" }) {
   return (
@@ -13,28 +40,24 @@ function RedFlowerSvg({ className = "" }) {
       xmlns="http://www.w3.org/2000/svg"
       className={className}
     >
-      {/* Thân cây hoa màu xanh */}
       <path
         d="M32 34C32 48 31 62 32 74"
         stroke="#15803d"
         strokeWidth="4.5"
         strokeLinecap="round"
       />
-      {/* Lá bên trái */}
       <path
         d="M31 56C22 54 16 47 18 42C23 42 29 48 31 56Z"
         fill="#22c55e"
         stroke="#15803d"
         strokeWidth="1.5"
       />
-      {/* Lá bên phải */}
       <path
         d="M33 52C42 50 48 43 46 38C41 38 35 44 33 52Z"
         fill="#22c55e"
         stroke="#15803d"
         strokeWidth="1.5"
       />
-      {/* 5 cánh hoa màu đỏ rực rỡ */}
       <circle
         cx="32"
         cy="14"
@@ -75,7 +98,6 @@ function RedFlowerSvg({ className = "" }) {
         stroke="#b91c1c"
         strokeWidth="1.5"
       />
-      {/* Nhụy hoa màu vàng tươi */}
       <circle
         cx="32"
         cy="27"
@@ -99,6 +121,23 @@ export default function PhoenixTreeStage({
   onClickMyBranch,
 }) {
   const stageInfo = useMemo(() => getTreeStageInfo(totalCount), [totalCount]);
+
+  const totalPages = Math.max(1, Math.ceil(branches.length / FLOWERS_PER_PAGE));
+  const [currentPage, setCurrentPage] = useState(totalPages - 1);
+  const [activeFlowerId, setActiveFlowerId] = useState(null);
+
+  // Tự động nhảy tới trang mới nhất khi có thêm hoa mới
+  useEffect(() => {
+    setCurrentPage(
+      Math.max(0, Math.ceil(branches.length / FLOWERS_PER_PAGE) - 1)
+    );
+  }, [branches.length]);
+
+  const safePage = Math.min(Math.max(0, currentPage), totalPages - 1);
+  const currentFlowers = useMemo(() => {
+    const start = safePage * FLOWERS_PER_PAGE;
+    return branches.slice(start, start + FLOWERS_PER_PAGE);
+  }, [branches, safePage]);
 
   return (
     <>
@@ -192,7 +231,6 @@ export default function PhoenixTreeStage({
             className="h-14 w-14 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)] sm:h-20 sm:w-20"
           />
 
-          {/* Giọt nước chảy ra từ vòi bình tưới khi đang tưới */}
           <AnimatePresence>
             {isWatering && (
               <div className="pointer-events-none absolute -bottom-8 -left-8 flex gap-1.5">
@@ -221,61 +259,71 @@ export default function PhoenixTreeStage({
         </motion.button>
       </div>
 
-      {/* 2. Những bông hoa màu đỏ mọc ngẫu nhiên trên sân cỏ (Hiển thị đồng nhất trên cả Mobile & PC) */}
+      {/* 2. Những bông hoa màu đỏ trên sân cỏ (Phân trang 6 bông/trang để không bao giờ đè nhau) */}
       <div className="pointer-events-none fixed inset-0 z-20 overflow-hidden">
-        {branches.map((branch, idx) => {
-          const posX = typeof branch.posX === "number" ? branch.posX : 24;
-          const posY = typeof branch.posY === "number" ? branch.posY : 15;
+        {currentFlowers.map((branch, slotIdx) => {
+          const { x: posX, y: posY } = getSlotCoords(branch, slotIdx);
 
-          const displayName =
+          const fullName =
             branch.name && branch.name.trim() !== ""
               ? branch.name
               : "Người ẩn danh";
+          const shortName =
+            branch.name && branch.name.trim() !== ""
+              ? branch.name.length > 10
+                ? `${branch.name.slice(0, 10)}…`
+                : branch.name
+              : "Ẩn danh";
+
           const waterTimes = branch.waterCountOnBranch || 1;
           const hasNote = Boolean(
             branch.hasNote || (branch.note && branch.note.trim() !== "")
           );
           const isPublic = branch.isPublic !== false;
           const canClickFlowerToNote = !isAdmin && Boolean(branch.isMineToday);
+          const isExpanded =
+            activeFlowerId === branch._id || Boolean(branch.isMineToday);
 
           return (
             <div
-              key={branch._id || idx}
+              key={branch._id || slotIdx}
+              onMouseEnter={() => setActiveFlowerId(branch._id)}
+              onMouseLeave={() =>
+                setActiveFlowerId((prev) =>
+                  prev === branch._id ? null : prev
+                )
+              }
               style={{
                 position: "absolute",
                 left: `${posX}%`,
                 bottom: `${posY}%`,
                 transform: "translateX(-50%)",
               }}
-              className="pointer-events-auto flex flex-col items-center"
+              className="group pointer-events-auto flex flex-col items-center"
             >
               {/* Khu vực Bông hoa đung đưa trong gió + Dấu ! nhỏ + Cuộn thư */}
               <div className="relative flex items-center justify-center">
-                {/* Bông hoa đỏ đung đưa trong gió */}
                 <div
                   onClick={() => {
+                    setActiveFlowerId(branch._id);
                     if (canClickFlowerToNote && onClickMyBranch) {
                       onClickMyBranch(branch);
-                    } else if (hasNote && (isPublic || isAdmin) && onOpenScroll) {
+                    } else if (
+                      hasNote &&
+                      (isPublic || isAdmin) &&
+                      onOpenScroll
+                    ) {
                       onOpenScroll(branch);
                     }
                   }}
-                  title={
-                    canClickFlowerToNote
-                      ? hasNote
-                        ? "Bấm để sửa hoặc xóa lời nhắn của bạn"
-                        : "Bấm vào bông hoa để viết lời nhắn cho Nam"
-                      : hasNote && (isPublic || isAdmin)
-                        ? `Đọc lời nhắn của ${displayName}`
-                        : undefined
-                  }
+                  title={`[${fullName} đã tưới ${waterTimes} lần]`}
                   style={{
-                    animationDelay: `${(idx % 5) * 0.35}s`,
+                    animationDelay: `${(slotIdx % 5) * 0.35}s`,
                   }}
                   className={`animate-flower-sway relative flex items-center justify-center ${
                     canClickFlowerToNote || (hasNote && (isPublic || isAdmin))
                       ? "cursor-pointer transition-transform hover:scale-110"
-                      : ""
+                      : "cursor-pointer"
                   }`}
                 >
                   <RedFlowerSvg className="h-10 w-9 drop-shadow-[0_4px_6px_rgba(0,0,0,0.35)] sm:h-13 sm:w-11" />
@@ -312,7 +360,7 @@ export default function PhoenixTreeStage({
                           e.stopPropagation();
                           if (onOpenScroll) onOpenScroll(branch);
                         }}
-                        title={`Đọc lời nhắn của ${displayName}`}
+                        title={`Đọc lời nhắn của ${fullName}`}
                         className="cursor-pointer transition-transform hover:scale-125 focus:outline-none"
                       >
                         <img
@@ -329,7 +377,7 @@ export default function PhoenixTreeStage({
                           e.stopPropagation();
                           if (onOpenScroll) onOpenScroll(branch);
                         }}
-                        title={`[Nam] Mở thư bí mật của ${displayName}`}
+                        title={`[Nam] Mở thư bí mật của ${fullName}`}
                         className="cursor-pointer transition-transform hover:scale-125 focus:outline-none"
                       >
                         <img
@@ -354,23 +402,62 @@ export default function PhoenixTreeStage({
                 )}
               </div>
 
-              {/* Nhãn tên ngay gần bông hoa: [abc/Người ẩn danh đã tưới x lần] */}
+              {/* Nhãn tên dưới bông hoa: Bình thường hiện gọn, chạm/di chuột vào hiện đầy đủ [Tên đã tưới x lần] */}
               <div
                 onClick={() => {
+                  setActiveFlowerId((prev) =>
+                    prev === branch._id ? null : branch._id
+                  );
                   if (canClickFlowerToNote && onClickMyBranch) {
                     onClickMyBranch(branch);
                   }
                 }}
-                className={`mt-0.5 whitespace-nowrap rounded-full border border-amber-300/60 bg-slate-950/85 px-2 py-0.5 text-[9px] font-semibold text-amber-100 shadow-md sm:text-[11px] ${
-                  canClickFlowerToNote ? "cursor-pointer hover:bg-slate-900" : ""
-                }`}
+                className="mt-0.5 cursor-pointer whitespace-nowrap rounded-full border border-amber-300/60 bg-slate-950/85 px-2 py-0.5 text-[9px] font-semibold text-amber-100 shadow-md transition-all sm:text-[11px]"
               >
-                [{displayName} đã tưới {waterTimes} lần]
+                <span className={isExpanded ? "hidden" : "inline group-hover:hidden"}>
+                  {shortName}
+                </span>
+                <span className={isExpanded ? "inline" : "hidden group-hover:inline"}>
+                  [{fullName} đã tưới {waterTimes} lần]
+                </span>
               </div>
             </div>
           );
         })}
       </div>
+
+      {/* 3. Nút lật trang bãi cỏ khi có > 6 bông hoa */}
+      {totalPages > 1 && (
+        <div className="pointer-events-none fixed bottom-2.5 left-1/2 z-30 -translate-x-1/2">
+          <div className="pointer-events-auto flex items-center gap-1.5 rounded-full border border-white/20 bg-slate-900/90 px-3 py-1 text-xs font-semibold text-amber-100 shadow-xl">
+            <button
+              type="button"
+              onClick={() => setCurrentPage((prev) => Math.max(0, prev - 1))}
+              disabled={safePage === 0}
+              aria-label="Vườn hoa trước"
+              className="rounded-full p-1 text-amber-300 transition hover:bg-slate-800 disabled:opacity-35"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </button>
+
+            <span className="whitespace-nowrap px-1.5 text-[11px] sm:text-xs">
+              Khu vườn {safePage + 1}/{totalPages}
+            </span>
+
+            <button
+              type="button"
+              onClick={() =>
+                setCurrentPage((prev) => Math.min(totalPages - 1, prev + 1))
+              }
+              disabled={safePage >= totalPages - 1}
+              aria-label="Vườn hoa tiếp theo"
+              className="rounded-full p-1 text-amber-300 transition hover:bg-slate-800 disabled:opacity-35"
+            >
+              <ChevronRight className="h-4 w-4" />
+            </button>
+          </div>
+        </div>
+      )}
     </>
   );
 }

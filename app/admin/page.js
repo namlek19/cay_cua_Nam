@@ -15,6 +15,7 @@ import MeadowBackground from "@/components/MeadowBackground";
 import EnvironmentCanvas from "@/components/EnvironmentCanvas";
 import TopHudBar from "@/components/TopHudBar";
 import PhoenixTreeStage from "@/components/PhoenixTreeStage";
+import BranchesDrawer from "@/components/BranchesDrawer";
 import ScrollModal from "@/components/ScrollModal";
 import { getTreeStageInfo } from "@/lib/treeConfig";
 
@@ -37,6 +38,7 @@ export default function AdminPage() {
 
   const [isWatering, setIsWatering] = useState(false);
   const [isSubmittingWater, setIsSubmittingWater] = useState(false);
+  const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const [activeScrollBranch, setActiveScrollBranch] = useState(null);
   const [toast, setToast] = useState(null);
 
@@ -363,6 +365,8 @@ export default function AdminPage() {
             guestWaterCount={treeState.guestWaterCount || 0}
             streak={treeState.streak || 0}
             isAdminPage={true}
+            branchCount={branches.length}
+            onOpenBranchesDrawer={() => setIsDrawerOpen(true)}
             dbConfigWarning={dbConfigWarning}
           />
 
@@ -409,6 +413,18 @@ export default function AdminPage() {
               <span>Khóa PIN</span>
             </button>
           </div>
+
+          {/* Drawer danh sách toàn bộ lời nhắn & lượt tưới (chỉ có ở /admin) */}
+          <BranchesDrawer
+            isOpen={isDrawerOpen}
+            onClose={() => setIsDrawerOpen(false)}
+            branches={branches}
+            isAdmin={true}
+            onOpenScroll={(branch) => {
+              setIsDrawerOpen(false);
+              handleOpenScroll(branch);
+            }}
+          />
 
           {/* Modal: Read Any Scroll (Public & Locked Secret) on /assets/scroll_open_bg.png */}
           <ScrollModal

@@ -2,7 +2,7 @@
 
 import React from "react";
 import Link from "next/link";
-import { Home, AlertTriangle } from "lucide-react";
+import { Home, AlertTriangle, ScrollText } from "lucide-react";
 import { getTreeStageInfo } from "@/lib/treeConfig";
 
 export default function TopHudBar({
@@ -11,6 +11,8 @@ export default function TopHudBar({
   guestWaterCount = 0,
   streak = 0,
   isAdminPage = false,
+  branchCount = 0,
+  onOpenBranchesDrawer,
   dbConfigWarning = null,
 }) {
   const stageInfo = getTreeStageInfo(totalCount);
@@ -36,9 +38,20 @@ export default function TopHudBar({
           </div>
         </div>
 
-        {/* Right HUD: Chỉ ở /admin mới có nút chuyển sang trang thường */}
+        {/* Right HUD: Chỉ ở /admin mới có nút Danh sách lời nhắn và nút chuyển sang trang thường */}
         {isAdminPage && (
-          <div className="pointer-events-auto flex items-center gap-2">
+          <div className="pointer-events-auto flex flex-wrap items-center gap-2">
+            {onOpenBranchesDrawer && (
+              <button
+                type="button"
+                onClick={onOpenBranchesDrawer}
+                className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-amber-300/40 bg-slate-900/85 px-3.5 text-xs font-bold text-amber-200 shadow-lg backdrop-blur-md transition hover:bg-slate-800"
+              >
+                <ScrollText className="h-4 w-4 text-amber-400" />
+                <span>Danh sách lời nhắn ({branchCount})</span>
+              </button>
+            )}
+
             <Link
               href="/"
               className="inline-flex h-10 items-center gap-1.5 rounded-2xl border border-white/20 bg-slate-900/85 px-3.5 text-xs font-bold text-slate-100 shadow-lg backdrop-blur-md transition hover:bg-slate-800"
