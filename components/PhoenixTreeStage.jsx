@@ -219,8 +219,8 @@ export default function PhoenixTreeStage({
           }
           style={{
             position: "absolute",
-            bottom: "1.5%",
-            left: "56%",
+            bottom: "1%",
+            left: "55%",
           }}
           className="pointer-events-auto z-30 flex cursor-pointer flex-col items-center focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -228,7 +228,7 @@ export default function PhoenixTreeStage({
             src="/assets/watering_can.png"
             alt="Tưới nước"
             draggable={false}
-            className="h-14 w-14 object-contain drop-shadow-[0_6px_12px_rgba(0,0,0,0.45)] sm:h-20 sm:w-20"
+            className="h-24 w-24 object-contain drop-shadow-[0_10px_18px_rgba(0,0,0,0.55)] sm:h-32 sm:w-32 md:h-36 md:w-36"
           />
 
           <AnimatePresence>
