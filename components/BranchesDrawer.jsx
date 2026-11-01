@@ -8,7 +8,6 @@ import {
   Lock,
   Globe,
   Droplets,
-  Sparkles,
   ScrollText,
   Filter,
 } from "lucide-react";
@@ -143,7 +142,6 @@ export default function BranchesDrawer({
             <div className="custom-scrollbar flex-1 space-y-3 overflow-y-auto p-4">
               {filteredBranches.length === 0 ? (
                 <div className="flex h-64 flex-col items-center justify-center rounded-2xl border border-dashed border-white/15 bg-slate-800/50 p-6 text-center text-slate-300">
-                  <Sparkles className="mb-2 h-8 w-8 text-amber-300/70" />
                   <p className="text-sm font-medium">
                     Chưa có lời nhắn hay bông hoa nào trong danh mục này.
                   </p>

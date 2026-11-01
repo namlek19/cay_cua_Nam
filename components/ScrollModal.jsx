@@ -2,7 +2,7 @@
 
 import React from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { X, Sparkles, Lock, Globe, Calendar, Droplets } from "lucide-react";
+import { X, Lock, Globe, Calendar, Droplets } from "lucide-react";
 
 export default function ScrollModal({ branch, onClose }) {
   if (!branch) return null;
@@ -51,8 +51,7 @@ export default function ScrollModal({ branch, onClose }) {
             {/* Header Info */}
             <div className="border-b border-amber-900/25 pb-2.5">
               <div className="flex flex-wrap items-center justify-between gap-2">
-                <div className="flex items-center gap-1.5 text-amber-950">
-                  <Sparkles className="h-4 w-4 shrink-0 text-amber-700" />
+                <div className="flex items-center gap-2 text-amber-950">
                   <h3 className="text-base font-bold tracking-tight sm:text-lg">
                     {displayName}
                   </h3>
@@ -85,20 +84,12 @@ export default function ScrollModal({ branch, onClose }) {
               </p>
             </div>
 
-            {/* Footer Date & Action */}
+            {/* Footer Date */}
             <div className="flex items-center justify-between border-t border-amber-900/20 pt-2 text-xs text-amber-900/80">
               <span className="inline-flex items-center gap-1 font-medium">
                 <Calendar className="h-3.5 w-3.5" />
                 Ngày gửi: {branch.dateStr || "Hôm nay"}
               </span>
-
-              <button
-                type="button"
-                onClick={onClose}
-                className="rounded-full bg-amber-900/85 px-4 py-1 text-xs font-semibold text-amber-50 shadow transition hover:bg-amber-800"
-              >
-                Đóng cuộn thư
-              </button>
             </div>
           </div>
         </motion.div>

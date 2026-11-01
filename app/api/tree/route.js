@@ -20,7 +20,7 @@ function formatBranchesForClient(branches, isAdmin, hashSet = [], todayVN = "") 
     );
     const { posX, posY } = ensureFlowerPosition(raw, idx);
 
-    if (!isAdmin && raw.isPublic === false && hasNote) {
+    if (!isAdmin && !isMineToday && raw.isPublic === false && hasNote) {
       return {
         _id: String(raw._id),
         dateStr: raw.dateStr,
@@ -139,17 +139,22 @@ function extractMyTodayNote(branches, hashSet, todayVN) {
   const myBranchesToday = branches.filter(
     (b) => hashSet.includes(b.visitorHash) && b.dateStr === todayVN
   );
-  const branchWithNote = myBranchesToday.find(
-    (b) => typeof b.note === "string" && b.note.trim() !== ""
-  );
-  if (!branchWithNote) return null;
+  if (myBranchesToday.length === 0) return null;
+
+  const target =
+    myBranchesToday.find(
+      (b) => typeof b.note === "string" && b.note.trim() !== ""
+    ) || myBranchesToday[0];
+
+  const rawNote = typeof target.note === "string" ? target.note.trim() : "";
 
   return {
-    _id: String(branchWithNote._id),
-    name: branchWithNote.name || "",
-    isAnonymous: !branchWithNote.name,
-    note: branchWithNote.note,
-    isPublic: branchWithNote.isPublic !== false,
+    _id: String(target._id),
+    name: target.name || "",
+    isAnonymous: !target.name || target.name.trim() === "",
+    note: rawNote,
+    hasNote: rawNote !== "",
+    isPublic: target.isPublic !== false,
   };
 }
 

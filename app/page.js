@@ -3,7 +3,6 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
-import { Sparkles } from "lucide-react";
 import MeadowBackground from "@/components/MeadowBackground";
 import EnvironmentCanvas from "@/components/EnvironmentCanvas";
 import TopHudBar from "@/components/TopHudBar";
@@ -98,7 +97,7 @@ export default function HomePage() {
         setTreeState(data.treeState);
         setBranches(data.branches || []);
         setMyTodayNote(data.myTodayNote || null);
-        if (data.myTodayNote && typeof window !== "undefined") {
+        if (data.myTodayNote?.hasNote && typeof window !== "undefined") {
           localStorage.setItem(
             "cay_phuong_note_sent_date",
             data.todayVN || getLocalTodayVN()
@@ -210,7 +209,7 @@ export default function HomePage() {
       // Lần tưới đầu tiên trong ngày: Hỏi tên luôn -> hỏi xong mới hiện cái hỏi có note không
       if (
         data.myTodayWaterCount === 1 &&
-        !data.myTodayNote &&
+        !data.myTodayNote?.hasNote &&
         !alreadyNotedLocal &&
         !alreadyAskedFirstTime
       ) {
@@ -229,15 +228,10 @@ export default function HomePage() {
     }
   };
 
-  // Khi người dùng nghĩ lại và bấm vào bông hoa đỏ của mình (có dấu ! nhỏ) để viết hoặc sửa lời nhắn
+  // Khi người dùng nghĩ lại và bấm vào bông hoa đỏ của mình để thêm/đổi tên, đổi ẩn danh, hoặc viết/sửa lời nhắn
   const handleClickMyBranch = () => {
-    if (myTodayNote) {
-      setModalInitialMode("form");
-      setIsWaterModalOpen(true);
-    } else {
-      setModalInitialMode("ask");
-      setIsWaterModalOpen(true);
-    }
+    setModalInitialMode("form");
+    setIsWaterModalOpen(true);
   };
 
   const handleSaveNameOnly = async ({ name, isAnonymous }) => {
@@ -258,6 +252,9 @@ export default function HomePage() {
       const data = await res.json();
       if (res.ok && data.ok) {
         setBranches(data.branches || []);
+        if (data.myTodayNote) {
+          setMyTodayNote(data.myTodayNote);
+        }
       }
     } catch {
       // Ignore silent name update error
@@ -279,25 +276,31 @@ export default function HomePage() {
           isAnonymous,
           note,
           isPublic,
-          isEdit: Boolean(myTodayNote),
         }),
       });
       const data = await res.json();
 
       if (!res.ok || !data.ok) {
-        showToast(data.error || "Không thể lưu lời nhắn.", "error");
+        showToast(data.error || "Không thể lưu thay đổi.", "error");
         return false;
       }
 
       setBranches(data.branches || []);
       setMyTodayNote(data.myTodayNote || null);
       if (typeof window !== "undefined") {
-        localStorage.setItem("cay_phuong_note_sent_date", getLocalTodayVN());
+        if (note && note.trim() !== "") {
+          localStorage.setItem("cay_phuong_note_sent_date", getLocalTodayVN());
+        } else {
+          localStorage.removeItem("cay_phuong_note_sent_date");
+        }
       }
-      showToast("Đã lưu lời nhắn của bạn bên bông hoa đỏ!", "success");
+      showToast(
+        data.message || "Đã lưu thông tin trên bông hoa đỏ!",
+        "success"
+      );
       return true;
     } catch {
-      showToast("Lỗi kết nối khi lưu lời nhắn.", "error");
+      showToast("Lỗi kết nối khi lưu thay đổi.", "error");
       return false;
     } finally {
       setIsSubmitting(false);
@@ -320,7 +323,7 @@ export default function HomePage() {
       }
 
       setBranches(data.branches || []);
-      setMyTodayNote(null);
+      setMyTodayNote(data.myTodayNote || null);
       if (typeof window !== "undefined") {
         localStorage.removeItem("cay_phuong_note_sent_date");
       }
@@ -336,7 +339,7 @@ export default function HomePage() {
 
   const handleOpenScroll = (branch) => {
     if (!branch) return;
-    if (branch.isPublic === false) return;
+    if (branch.isPublic === false && !branch.isMineToday) return;
     setActiveScrollBranch(branch);
   };
 
@@ -375,7 +378,6 @@ export default function HomePage() {
                 : "border-emerald-400/50 bg-emerald-950/90 text-emerald-100"
             }`}
           >
-            <Sparkles className="h-4 w-4 shrink-0 text-amber-300" />
             <span>{toast.message}</span>
           </motion.div>
         )}

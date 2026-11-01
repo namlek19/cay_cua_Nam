@@ -6,7 +6,6 @@ import { motion, AnimatePresence } from "framer-motion";
 import confetti from "canvas-confetti";
 import {
   KeyRound,
-  Sparkles,
   LogOut,
   ArrowLeft,
   Delete,
@@ -405,7 +404,6 @@ export default function AdminPage() {
                     : "border-emerald-400/50 bg-emerald-950/90 text-emerald-100"
                 }`}
               >
-                <Sparkles className="h-4 w-4 shrink-0 text-amber-300" />
                 <span>{toast.message}</span>
               </motion.div>
             )}

@@ -7,14 +7,16 @@ import { getTreeStageInfo } from "@/lib/treeConfig";
 
 const FLOWERS_PER_PAGE = 6;
 
-// 6 vùng tọa độ chuẩn trên sân cỏ (3 bên trái cây, 3 bên phải cây) kết hợp độ lệch ngẫu nhiên từ server để hoa mọc tự nhiên mà KHÔNG BAO GIỜ đè nhau
+// 6 vùng tọa độ chuẩn trên sân cỏ:
+// - 4 bông bên trái (2 tầng trên/dưới) + 2 bông góc dưới bên phải
+// - Dành riêng góc trên bên phải cạnh cây (x: 54%..82%, y: 15%..25%) cho Bình tưới nước để KHÔNG BAO GIỜ đè lên hoa
 const LAWN_SLOTS = [
-  { baseX: 16, baseY: 18 },
-  { baseX: 64, baseY: 19 },
-  { baseX: 27, baseY: 12 },
-  { baseX: 75, baseY: 13 },
-  { baseX: 38, baseY: 19.5 },
-  { baseX: 85, baseY: 18.5 },
+  { baseX: 16, baseY: 19.5 }, // Trái - tầng trên ngoài
+  { baseX: 64, baseY: 6.5 },  // Phải - tầng dưới trong (nằm dưới bình tưới)
+  { baseX: 33, baseY: 19.5 }, // Trái - tầng trên trong
+  { baseX: 83, baseY: 7.5 },  // Phải - tầng dưới ngoài (nằm dưới bình tưới)
+  { baseX: 18, baseY: 7.5 },  // Trái - tầng dưới ngoài
+  { baseX: 35, baseY: 7.5 },  // Trái - tầng dưới trong
 ];
 
 function getSlotCoords(branch, slotIdx) {
@@ -22,9 +24,9 @@ function getSlotCoords(branch, slotIdx) {
   const rawX = typeof branch.posX === "number" ? branch.posX : slot.baseX;
   const rawY = typeof branch.posY === "number" ? branch.posY : slot.baseY;
 
-  // Tạo độ lệch nhỏ (-2.5% .. +2.5%) từ tọa độ ngẫu nhiên của server quanh ô chuẩn để mọi máy PC & Mobile đều thấy giống nhau và không bao giờ chồng chéo
-  const jitterX = ((Math.round(rawX * 10) % 50) - 25) / 10;
-  const jitterY = ((Math.round(rawY * 10) % 36) - 18) / 10;
+  // Độ lệch nhỏ (-1.2% .. +1.2% ngang, -0.8% .. +0.8% dọc) để hoa tự nhiên nhưng không bao giờ chạm vào bình tưới hay đè nhau
+  const jitterX = ((Math.round(rawX * 10) % 24) - 12) / 10;
+  const jitterY = ((Math.round(rawY * 10) % 16) - 8) / 10;
 
   return {
     x: Number((slot.baseX + jitterX).toFixed(2)),
@@ -219,8 +221,8 @@ export default function PhoenixTreeStage({
           }
           style={{
             position: "absolute",
-            bottom: "1%",
-            left: "55%",
+            bottom: "8%",
+            left: "54%",
           }}
           className="pointer-events-auto z-30 flex cursor-pointer flex-col items-center focus:outline-none disabled:cursor-not-allowed disabled:opacity-60"
         >
@@ -329,8 +331,8 @@ export default function PhoenixTreeStage({
                   <RedFlowerSvg className="h-10 w-9 drop-shadow-[0_4px_6px_rgba(0,0,0,0.35)] sm:h-13 sm:w-11" />
                 </div>
 
-                {/* Dấu ! nhỏ nổi bật ngay gần bông hoa khi người dùng chưa để lại lời nhắn */}
-                {canClickFlowerToNote && !hasNote && (
+                {/* Dấu ! nhỏ nổi bật ngay gần bông hoa khi người dùng chưa để lại lời nhắn hoặc đang ẩn danh muốn thêm tên */}
+                {canClickFlowerToNote && (!hasNote || !branch.name) && (
                   <motion.button
                     type="button"
                     animate={{ scale: [1, 1.22, 1], y: [0, -2, 0] }}
@@ -343,7 +345,7 @@ export default function PhoenixTreeStage({
                       e.stopPropagation();
                       if (onClickMyBranch) onClickMyBranch(branch);
                     }}
-                    title="Bấm để để lại lời nhắn cho Nam"
+                    title="Bấm để thêm/đổi tên hoặc để lại lời nhắn cho Nam"
                     className="absolute -right-2 -top-1 z-30 flex h-4.5 w-4.5 items-center justify-center rounded-full border border-white bg-amber-500 text-[10px] font-black leading-none text-slate-950 shadow-[0_0_10px_rgba(245,158,11,0.95)] sm:h-5 sm:w-5 sm:text-xs"
                   >
                     !
@@ -370,14 +372,18 @@ export default function PhoenixTreeStage({
                           className="animate-scroll-swing h-6 w-auto object-contain drop-shadow-[0_3px_6px_rgba(239,68,68,0.65)] sm:h-7"
                         />
                       </button>
-                    ) : isAdmin ? (
+                    ) : isAdmin || branch.isMineToday ? (
                       <button
                         type="button"
                         onClick={(e) => {
                           e.stopPropagation();
                           if (onOpenScroll) onOpenScroll(branch);
                         }}
-                        title={`[Nam] Mở thư bí mật của ${fullName}`}
+                        title={
+                          isAdmin
+                            ? `[Nam] Mở thư bí mật của ${fullName}`
+                            : "Mở xem lời nhắn bí mật của bạn"
+                        }
                         className="cursor-pointer transition-transform hover:scale-125 focus:outline-none"
                       >
                         <img

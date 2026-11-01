@@ -25,30 +25,45 @@ export default function GuestWaterModal({
     if (isOpen) {
       setStep(initialMode);
       setShowConfirmAnon(false);
+
+      let localName = "";
+      let localAnon = false;
+      if (typeof window !== "undefined") {
+        localName = localStorage.getItem("cay_phuong_guest_name") || "";
+        localAnon = localStorage.getItem("cay_phuong_guest_anon") === "true";
+      }
+
       if (existingNote) {
-        setName(existingNote.name || "");
-        setIsAnonymous(Boolean(existingNote.isAnonymous));
+        const currentBranchName = existingNote.name || "";
+        const branchIsAnon = Boolean(
+          existingNote.isAnonymous || !currentBranchName.trim()
+        );
+        setName(currentBranchName || localName);
+        setIsAnonymous(branchIsAnon);
         setNote(existingNote.note || "");
         setIsPublic(existingNote.isPublic !== false);
       } else {
+        setName(localName);
+        setIsAnonymous(localAnon);
         setNote("");
         setIsPublic(true);
-        if (typeof window !== "undefined") {
-          const savedName = localStorage.getItem("cay_phuong_guest_name") || "";
-          const savedAnon =
-            localStorage.getItem("cay_phuong_guest_anon") === "true";
-          setName(savedName);
-          setIsAnonymous(savedAnon);
-        }
       }
     }
   }, [isOpen, initialMode, existingNote]);
 
+  // Khi người dùng gõ tên vào ô input -> tự động tắt chế độ ẩn danh để tiện nhất
   const handleNameChange = (val) => {
     const sliced = val.slice(0, 40);
     setName(sliced);
     if (typeof window !== "undefined") {
       localStorage.setItem("cay_phuong_guest_name", sliced);
+    }
+    if (sliced.trim() !== "" && isAnonymous) {
+      setIsAnonymous(false);
+      setShowConfirmAnon(false);
+      if (typeof window !== "undefined") {
+        localStorage.setItem("cay_phuong_guest_anon", "false");
+      }
     }
   };
 
@@ -74,10 +89,15 @@ export default function GuestWaterModal({
     setStep("ask");
   };
 
-  // Khi bấm nút ẩn danh ở bảng viết lời nhắn -> Hỏi có muốn chuyển thành ẩn danh cho cả lượt tưới không
+  // Khi bấm nút ẩn danh ở bảng chỉnh sửa
   const handleAnonClickInForm = () => {
     if (!isAnonymous) {
-      setShowConfirmAnon(true);
+      // Nếu đang có tên mà bấm sang Ẩn danh thì hỏi xác nhận đổi cả lượt tưới thành ẩn danh
+      if (name.trim() !== "") {
+        setShowConfirmAnon(true);
+      } else {
+        applyAnonymousState(true);
+      }
     } else {
       applyAnonymousState(false);
       setShowConfirmAnon(false);
@@ -97,14 +117,17 @@ export default function GuestWaterModal({
 
   const handleFormSubmit = async (e) => {
     e.preventDefault();
-    if (isSubmitting || !note.trim()) return;
+    if (isSubmitting) return;
 
     const finalAnon = isAnonymous || !name.trim();
+    applyAnonymousState(finalAnon);
+
+    const trimmedNote = note.trim();
     const success = await onSaveNote({
       name: finalAnon ? null : name.trim(),
       isAnonymous: finalAnon,
-      note,
-      isPublic,
+      note: trimmedNote,
+      isPublic: trimmedNote ? isPublic : true,
     });
 
     if (success) {
@@ -119,6 +142,10 @@ export default function GuestWaterModal({
       onClose();
     }
   };
+
+  const hasTypedNote = note.trim().length > 0;
+  const hadExistingNote = Boolean(existingNote?.hasNote);
+  const effectiveAnon = isAnonymous || !name.trim();
 
   return (
     <AnimatePresence>
@@ -177,26 +204,32 @@ export default function GuestWaterModal({
                     </button>
                   </div>
 
-                  {!isAnonymous ? (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => handleNameChange(e.target.value)}
-                        placeholder="Nhập tên của bạn (để trống = Ẩn danh)..."
-                        maxLength={40}
-                        autoFocus
-                        className="w-full rounded-xl border border-white/20 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-400 outline-none transition focus:border-amber-400"
-                      />
-                      <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
-                        {name.length}/40
-                      </span>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-amber-400/25 bg-slate-800 px-4 py-2.5 text-xs text-amber-200">
-                      Hiển thị trên hoa: <b>[Người ẩn danh đã tưới x lần]</b>
-                    </div>
-                  )}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={name}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      placeholder="Nhập tên của bạn (để trống = Ẩn danh)..."
+                      maxLength={40}
+                      autoFocus
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm text-white placeholder-slate-400 outline-none transition ${
+                        isAnonymous
+                          ? "border-amber-400/35 bg-slate-800/60 text-slate-300 focus:border-amber-400"
+                          : "border-white/20 bg-slate-800 focus:border-amber-400"
+                      }`}
+                    />
+                    <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
+                      {name.length}/40
+                    </span>
+                  </div>
+
+                  <p className="text-[11px] text-slate-300">
+                    Hiển thị trên hoa:{" "}
+                    <b className="text-amber-200">
+                      [{effectiveAnon ? "Người ẩn danh" : name.trim()} đã tưới x
+                      lần]
+                    </b>
+                  </p>
                 </div>
 
                 <button
@@ -224,9 +257,9 @@ export default function GuestWaterModal({
                 Bạn có muốn để lại lời nhắn cho Nam không?
               </p>
               <p className="mt-1 text-xs text-slate-300">
-                Một bông hoa đỏ của{" "}
-                <b>
-                  {isAnonymous || !name.trim() ? "Người ẩn danh" : name.trim()}
+                Bông hoa đỏ của{" "}
+                <b className="text-amber-200">
+                  {effectiveAnon ? "Người ẩn danh" : name.trim()}
                 </b>{" "}
                 đã mọc trên sân rồi đó!
               </p>
@@ -251,7 +284,7 @@ export default function GuestWaterModal({
           )}
 
           {step === "form" && (
-            /* Bước 3: Bảng để lại lời nhắn đơn giản, không gradient */
+            /* Bước 3: Bảng chỉnh sửa Tên / Ẩn danh & Lời nhắn (đơn giản, không gradient) */
             <motion.div
               key="note-form-modal"
               initial={{ scale: 0.92, opacity: 0, y: 16 }}
@@ -275,7 +308,7 @@ export default function GuestWaterModal({
               </div>
 
               <form onSubmit={handleFormSubmit} className="space-y-4 p-5">
-                {/* Tên bạn là & Nút ẩn danh */}
+                {/* 1. Tên bạn là & Nút ẩn danh (Luôn cho phép gõ tên nếu người ẩn danh đổi ý) */}
                 <div className="space-y-2">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-amber-200">
@@ -304,7 +337,7 @@ export default function GuestWaterModal({
                     </button>
                   </div>
 
-                  {/* Hỏi xác nhận khi người dùng bấm chuyển sang ẩn danh */}
+                  {/* Hỏi xác nhận khi người dùng đang có tên mà bấm chuyển sang ẩn danh */}
                   {showConfirmAnon && (
                     <div className="rounded-xl border border-amber-400/40 bg-slate-800 p-3 text-xs text-slate-200">
                       <p className="font-semibold text-amber-200">
@@ -330,33 +363,47 @@ export default function GuestWaterModal({
                     </div>
                   )}
 
-                  {!isAnonymous ? (
-                    <div className="relative">
-                      <input
-                        type="text"
-                        value={name}
-                        onChange={(e) => handleNameChange(e.target.value)}
-                        placeholder="Nhập tên của bạn..."
-                        maxLength={40}
-                        className="w-full rounded-xl border border-white/20 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-400 outline-none transition focus:border-amber-400"
-                      />
+                  {/* Ô nhập tên luôn mở để người ẩn danh chỉ cần gõ tên là tự tắt ẩn danh */}
+                  <div className="relative">
+                    <input
+                      type="text"
+                      value={isAnonymous ? "" : name}
+                      onChange={(e) => handleNameChange(e.target.value)}
+                      placeholder={
+                        isAnonymous
+                          ? "Đang ẩn danh — gõ tên vào đây nếu bạn muốn thêm tên..."
+                          : "Nhập tên của bạn (để trống = Người ẩn danh)..."
+                      }
+                      maxLength={40}
+                      className={`w-full rounded-xl border px-4 py-2.5 text-sm text-white placeholder-slate-400 outline-none transition ${
+                        isAnonymous
+                          ? "border-amber-400/35 bg-slate-800/70 focus:border-amber-400"
+                          : "border-white/20 bg-slate-800 focus:border-amber-400"
+                      }`}
+                    />
+                    {!isAnonymous && (
                       <span className="absolute right-3 top-1/2 -translate-y-1/2 text-[11px] text-slate-400">
                         {name.length}/40
                       </span>
-                    </div>
-                  ) : (
-                    <div className="rounded-xl border border-amber-400/25 bg-slate-800 px-4 py-2.5 text-xs text-amber-200">
-                      Đang để tên: <b>Người ẩn danh</b> (cho cả lượt tưới và lời
-                      nhắn)
-                    </div>
-                  )}
+                    )}
+                  </div>
+
+                  <p className="text-[11px] text-slate-300">
+                    Hiển thị trên bông hoa:{" "}
+                    <b className="text-amber-200">
+                      {effectiveAnon ? "Người ẩn danh" : name.trim()}
+                    </b>
+                  </p>
                 </div>
 
-                {/* Lời nhắn */}
+                {/* 2. Lời nhắn (Không bắt buộc nếu chỉ muốn thêm/đổi tên) */}
                 <div className="space-y-1.5">
                   <div className="flex items-center justify-between">
                     <label className="text-xs font-semibold text-amber-200">
-                      Lời nhắn
+                      Lời nhắn{" "}
+                      <span className="font-normal text-slate-400">
+                        (để trống nếu chỉ muốn đổi tên)
+                      </span>
                     </label>
                     <span className="text-[11px] text-slate-400">
                       {note.length}/500 ký tự
@@ -368,72 +415,73 @@ export default function GuestWaterModal({
                     onChange={(e) => setNote(e.target.value.slice(0, 500))}
                     placeholder="Viết lời nhắn gửi cho Nam..."
                     maxLength={500}
-                    required
                     className="w-full resize-none rounded-xl border border-white/20 bg-slate-800 p-3.5 text-sm text-white placeholder-slate-400 outline-none transition focus:border-amber-400"
                   />
                 </div>
 
-                {/* Bạn có muốn cho người khác đọc text không? */}
-                <div className="space-y-2">
-                  <label className="text-xs font-semibold text-amber-200">
-                    Bạn có muốn cho người khác đọc text không?
-                  </label>
-                  <div className="grid grid-cols-2 gap-2.5">
-                    <button
-                      type="button"
-                      onClick={() => setIsPublic(true)}
-                      className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition ${
-                        isPublic
-                          ? "border-emerald-400 bg-emerald-950/60"
-                          : "border-white/15 bg-slate-800 opacity-75 hover:opacity-100"
-                      }`}
-                    >
-                      <img
-                        src="/assets/scroll_public.png"
-                        alt="Cuộn thư công khai"
-                        className="h-10 w-8 shrink-0 object-contain"
-                      />
-                      <div>
-                        <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">
-                          <Globe className="h-3.5 w-3.5" />
-                          Công khai
+                {/* 3. Bạn có muốn cho người khác đọc text không? (Chỉ hiện khi có nhập lời nhắn) */}
+                {hasTypedNote && (
+                  <div className="space-y-2">
+                    <label className="text-xs font-semibold text-amber-200">
+                      Bạn có muốn cho người khác đọc text không?
+                    </label>
+                    <div className="grid grid-cols-2 gap-2.5">
+                      <button
+                        type="button"
+                        onClick={() => setIsPublic(true)}
+                        className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition ${
+                          isPublic
+                            ? "border-emerald-400 bg-emerald-950/60"
+                            : "border-white/15 bg-slate-800 opacity-75 hover:opacity-100"
+                        }`}
+                      >
+                        <img
+                          src="/assets/scroll_public.png"
+                          alt="Cuộn thư công khai"
+                          className="h-10 w-8 shrink-0 object-contain"
+                        />
+                        <div>
+                          <div className="flex items-center gap-1 text-xs font-bold text-emerald-200">
+                            <Globe className="h-3.5 w-3.5" />
+                            Công khai
+                          </div>
+                          <p className="text-[11px] leading-tight text-slate-300">
+                            Ai ghé thăm cây cũng đọc được
+                          </p>
                         </div>
-                        <p className="text-[11px] leading-tight text-slate-300">
-                          Ai ghé thăm cây cũng đọc được
-                        </p>
-                      </div>
-                    </button>
+                      </button>
 
-                    <button
-                      type="button"
-                      onClick={() => setIsPublic(false)}
-                      className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition ${
-                        !isPublic
-                          ? "border-rose-400 bg-rose-950/60"
-                          : "border-white/15 bg-slate-800 opacity-75 hover:opacity-100"
-                      }`}
-                    >
-                      <img
-                        src="/assets/scroll_locked.png"
-                        alt="Cuộn thư bí mật"
-                        className="h-10 w-8 shrink-0 object-contain"
-                      />
-                      <div>
-                        <div className="flex items-center gap-1 text-xs font-bold text-rose-200">
-                          <Lock className="h-3.5 w-3.5" />
-                          Bí mật
+                      <button
+                        type="button"
+                        onClick={() => setIsPublic(false)}
+                        className={`flex items-center gap-2.5 rounded-xl border p-2.5 text-left transition ${
+                          !isPublic
+                            ? "border-rose-400 bg-rose-950/60"
+                            : "border-white/15 bg-slate-800 opacity-75 hover:opacity-100"
+                        }`}
+                      >
+                        <img
+                          src="/assets/scroll_locked.png"
+                          alt="Cuộn thư bí mật"
+                          className="h-10 w-8 shrink-0 object-contain"
+                        />
+                        <div>
+                          <div className="flex items-center gap-1 text-xs font-bold text-rose-200">
+                            <Lock className="h-3.5 w-3.5" />
+                            Bí mật
+                          </div>
+                          <p className="text-[11px] leading-tight text-slate-300">
+                            chỉ Nam được đọc
+                          </p>
                         </div>
-                        <p className="text-[11px] leading-tight text-slate-300">
-                          chỉ Nam được đọc
-                        </p>
-                      </div>
-                    </button>
+                      </button>
+                    </div>
                   </div>
-                </div>
+                )}
 
                 {/* Action Buttons */}
                 <div className="flex items-center gap-2.5 pt-1">
-                  {existingNote && (
+                  {hadExistingNote && (
                     <button
                       type="button"
                       disabled={isSubmitting}
@@ -447,14 +495,18 @@ export default function GuestWaterModal({
 
                   <button
                     type="submit"
-                    disabled={isSubmitting || !note.trim()}
+                    disabled={isSubmitting}
                     className="flex-1 rounded-xl bg-amber-500 px-5 py-2.5 text-sm font-bold text-slate-950 transition hover:bg-amber-400 disabled:cursor-not-allowed disabled:opacity-50"
                   >
                     {isSubmitting
                       ? "Đang lưu..."
-                      : existingNote
-                        ? "Lưu sửa đổi"
-                        : "Lưu lời nhắn"}
+                      : hasTypedNote
+                        ? hadExistingNote
+                          ? "Lưu sửa đổi"
+                          : "Lưu lời nhắn"
+                        : effectiveAnon
+                          ? "Lưu chế độ ẩn danh"
+                          : `Chỉ lưu tên (${name.trim()})`}
                   </button>
                 </div>
               </form>

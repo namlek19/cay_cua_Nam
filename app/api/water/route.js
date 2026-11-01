@@ -20,7 +20,7 @@ function sanitizeBranchesForPublic(branches, hashSet = [], todayVN = "") {
     );
     const { posX, posY } = ensureFlowerPosition(raw, idx);
 
-    if (raw.isPublic === false && hasNote) {
+    if (!isMineToday && raw.isPublic === false && hasNote) {
       return {
         _id: String(raw._id),
         dateStr: raw.dateStr,
@@ -56,17 +56,22 @@ function extractMyTodayNote(branches, hashSet, todayVN) {
   const myBranchesToday = branches.filter(
     (b) => hashSet.includes(b.visitorHash) && b.dateStr === todayVN
   );
-  const branchWithNote = myBranchesToday.find(
-    (b) => typeof b.note === "string" && b.note.trim() !== ""
-  );
-  if (!branchWithNote) return null;
+  if (myBranchesToday.length === 0) return null;
+
+  const target =
+    myBranchesToday.find(
+      (b) => typeof b.note === "string" && b.note.trim() !== ""
+    ) || myBranchesToday[0];
+
+  const rawNote = typeof target.note === "string" ? target.note.trim() : "";
 
   return {
-    _id: String(branchWithNote._id),
-    name: branchWithNote.name || "",
-    isAnonymous: !branchWithNote.name,
-    note: branchWithNote.note,
-    isPublic: branchWithNote.isPublic !== false,
+    _id: String(target._id),
+    name: target.name || "",
+    isAnonymous: !target.name || target.name.trim() === "",
+    note: rawNote,
+    hasNote: rawNote !== "",
+    isPublic: target.isPublic !== false,
   };
 }
 
@@ -317,21 +322,11 @@ export async function PUT(request) {
     body = {};
   }
 
-  const { name, isAnonymous, note, isPublic, isEdit, updateNameOnly } = body;
+  const { name, isAnonymous, note, isPublic, updateNameOnly } = body;
   const cleanName =
     isAnonymous || !name?.trim() ? null : name.trim().slice(0, 40);
-  const cleanNote = note ? note.trim().slice(0, 500) : "";
-  const cleanIsPublic = isPublic === false ? false : true;
-
-  if (!updateNameOnly && !cleanNote) {
-    return NextResponse.json(
-      {
-        ok: false,
-        error: "Vui lòng nhập nội dung lời nhắn.",
-      },
-      { status: 400 }
-    );
-  }
+  const cleanNote = typeof note === "string" ? note.trim().slice(0, 500) : "";
+  const cleanIsPublic = cleanNote ? (isPublic === false ? false : true) : true;
 
   try {
     await connectDB();
@@ -341,7 +336,7 @@ export async function PUT(request) {
       dateStr: todayVN,
     }).sort({ createdAt: 1 });
 
-    // Nếu chỉ cập nhật tên cho bông hoa của lượt tưới hôm nay (Bước 1)
+    // Nếu chỉ cập nhật tên / chế độ ẩn danh cho bông hoa của lượt tưới hôm nay (không đụng tới note hiện có)
     if (updateNameOnly) {
       if (myTodayDocs.length > 0) {
         const keeper = myTodayDocs[0];
@@ -357,21 +352,6 @@ export async function PUT(request) {
         myTodayNote,
         branches: sanitizeBranchesForPublic(allBranches, hashSet, todayVN),
       });
-    }
-
-    const existingWithNote = myTodayDocs.find(
-      (b) => b.note && b.note.trim() !== ""
-    );
-
-    if (existingWithNote && !isEdit) {
-      return NextResponse.json(
-        {
-          ok: false,
-          error:
-            "Hôm nay bạn đã để lại lời nhắn rồi (1 ngày chỉ được gửi lời nhắn 1 lần)!",
-        },
-        { status: 429 }
-      );
     }
 
     if (myTodayDocs.length > 0) {
@@ -414,7 +394,9 @@ export async function PUT(request) {
 
     return NextResponse.json({
       ok: true,
-      message: "Đã lưu lời nhắn của bạn!",
+      message: cleanNote
+        ? "Đã lưu lời nhắn & tên hiển thị của bạn!"
+        : "Đã cập nhật tên hiển thị trên bông hoa!",
       myTodayNote,
       branches: sanitizeBranchesForPublic(allBranches, hashSet, todayVN),
     });
@@ -446,21 +428,6 @@ export async function PUT(request) {
         });
       }
 
-      const existingWithNote = myBranchesToday.find(
-        (b) => b.note && b.note.trim() !== ""
-      );
-
-      if (existingWithNote && !isEdit) {
-        return NextResponse.json(
-          {
-            ok: false,
-            error:
-              "Hôm nay bạn đã để lại lời nhắn rồi (1 ngày chỉ được gửi lời nhắn 1 lần)!",
-          },
-          { status: 429 }
-        );
-      }
-
       if (myBranchesToday.length > 0) {
         const keeper = myBranchesToday[0];
         keeper.visitorHash = visitorHash;
@@ -490,7 +457,9 @@ export async function PUT(request) {
 
       return NextResponse.json({
         ok: true,
-        message: "Đã lưu lời nhắn của bạn!",
+        message: cleanNote
+          ? "Đã lưu lời nhắn & tên hiển thị của bạn!"
+          : "Đã cập nhật tên hiển thị trên bông hoa!",
         myTodayNote,
         branches: sanitizeBranchesForPublic(sortedBranches, hashSet, todayVN),
       });
@@ -524,11 +493,12 @@ export async function DELETE(request) {
     );
 
     const allBranches = await Branch.find({}).sort({ createdAt: 1 }).lean();
+    const myTodayNote = extractMyTodayNote(allBranches, hashSet, todayVN);
 
     return NextResponse.json({
       ok: true,
       message: "Đã xóa lời nhắn của bạn.",
-      myTodayNote: null,
+      myTodayNote,
       branches: sanitizeBranchesForPublic(allBranches, hashSet, todayVN),
     });
   } catch (error) {
@@ -544,11 +514,12 @@ export async function DELETE(request) {
       const sortedBranches = [...fallback.branches].sort(
         (a, b) => new Date(a.createdAt) - new Date(b.createdAt)
       );
+      const myTodayNote = extractMyTodayNote(sortedBranches, hashSet, todayVN);
 
       return NextResponse.json({
         ok: true,
         message: "Đã xóa lời nhắn của bạn.",
-        myTodayNote: null,
+        myTodayNote,
         branches: sanitizeBranchesForPublic(sortedBranches, hashSet, todayVN),
       });
     }
